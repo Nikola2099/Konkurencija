@@ -1302,7 +1302,6 @@
           <select id="edit-status" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px">
             <option value="In development">In development</option>
             <option value="In construction">In construction</option>
-            <option value="Pre-construction">Pre-construction</option>
             <option value="In operation">In operation</option>
           </select>
         </div>
@@ -2618,15 +2617,14 @@ function saveEdit() {
   p.probability       = document.getElementById('edit-prob').value;
   p.status_permitting = document.getElementById('edit-permitting').value;
   p.comment           = document.getElementById('edit-comment').value;
-  // Save to Supabase
   saveProjectToDB(p).then(function(ok) {
     document.getElementById('edit-save-msg').textContent = ok ? '✓ Saved to database' : '✓ Saved locally';
     document.getElementById('edit-save-msg').style.color = ok ? '#22c55e' : '#f5c842';
     document.getElementById('edit-save-msg').style.display = 'block';
     setTimeout(function(){
       closeEditModal();
-      renderTable();
-    }, 800);
+      initApp();
+    }, 700);
   });
 }
 
