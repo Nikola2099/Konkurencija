@@ -1377,6 +1377,15 @@
           </select>
         </div>
         <div>
+          <label style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:6px">Energetska Dozvola</label>
+          <select id="edit-energy-license" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px">
+            <option value="">— Nije poznato —</option>
+            <option value="Da">Da — Ima energetsku dozvolu</option>
+            <option value="Ne">Ne — Nema energetsku dozvolu</option>
+            <option value="U toku">U toku — Postupak u toku</option>
+          </select>
+        </div>
+        <div>
           <label style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:6px">Comment / Deadline</label>
           <input id="edit-comment" type="text"
             style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;box-sizing:border-box"
@@ -2789,7 +2798,10 @@ function openProjSummary(id) {
     detailBox('Technology', '<span style="color:'+tc+'">'+p.technology.trim()+'</span>') +
     detailBox('Regulatory Law', LAW_LABELS[p.law]||p.law||'—') +
     detailBox('Permit Status', p.status_permitting||'—') +
-    detailBox('CFD / Support', p.cfd||'—');
+    detailBox('CFD / Support', p.cfd||'—') +
+    detailBox('Energetska Dozvola', p.energy_license
+      ? '<span style="color:'+(p.energy_license==='Da'?'#22c55e':p.energy_license==='U toku'?'#f5c842':'#ef4444')+'">'+p.energy_license+'</span>'
+      : '—');
 
   const dlMatch = (p.comment||'').match(/deadline[^-]*[-]\s*(.+)/i);
   const dl = dlMatch ? dlMatch[1].trim() : null;
@@ -2985,7 +2997,7 @@ async function saveSiteGrid() {
   cancelSiteGrid();
 }
 
-const DEFAULT_ASPECTS = ['Urbanizam', 'Elektrana'];
+const DEFAULT_ASPECTS = ['Urbanizam', 'Elektrana', 'Energetska Dozvola'];
 let _activeAspect = null;
 
 function renderPermitHistory(p) {
@@ -3209,6 +3221,7 @@ function openEditModal(id) {
   document.getElementById('edit-prob').value = p.probability || '';
   document.getElementById('edit-permitting').value = p.status_permitting || '';
   document.getElementById('edit-comment').value = p.comment || '';
+  document.getElementById('edit-energy-license').value = p.energy_license || '';
   document.getElementById('edit-save-msg').style.display = 'none';
   document.getElementById('edit-form-screen').style.display = 'block';
   document.getElementById('edit-pin-screen').style.display = 'none';
@@ -3223,6 +3236,7 @@ function saveEdit() {
   p.probability       = document.getElementById('edit-prob').value;
   p.status_permitting = document.getElementById('edit-permitting').value;
   p.comment           = document.getElementById('edit-comment').value;
+  p.energy_license    = document.getElementById('edit-energy-license').value;
   saveProjectToDB(p).then(function(ok) {
     document.getElementById('edit-save-msg').textContent = ok ? '✓ Saved to database' : '✓ Saved locally';
     document.getElementById('edit-save-msg').style.color = ok ? '#22c55e' : '#f5c842';
@@ -3364,7 +3378,7 @@ async function loadProjectsFromDB() {
         p.grid_voltage      = row.grid_voltage || '';
         p.grid_line_km      = row.grid_line_km || null;
         p.permit_history    = row.permit_history || [];
-        p.risk_factors      = row.risk_factors || [];
+        p.energy_license    = row.energy_license || '';
       }
     });
     console.log('Loaded ' + data.length + ' projects from Supabase');
@@ -3387,7 +3401,8 @@ async function saveProjectToDB(p) {
         status_overall:    p.status_overall,
         probability:       p.probability,
         status_permitting: p.status_permitting,
-        comment:           p.comment
+        comment:           p.comment,
+        energy_license:    p.energy_license
       })
     });
     return res.ok;
@@ -3617,7 +3632,7 @@ function initApp() {
       <!-- OVERVIEW TAB -->
       <div id="psm-tab-overview">
         <div id="psm-kpis" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px"></div>
-        <div id="psm-details" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px"></div>
+        <div id="psm-details" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px"></div>
         <div id="psm-deadline-wrap"></div>
       </div>
 
