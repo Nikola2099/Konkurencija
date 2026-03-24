@@ -162,13 +162,13 @@
   }
 
   .nav-btn {
-    padding: 7px 16px;
+    padding: 9px 20px;
     border-radius: 8px;
     border: none;
     background: transparent;
     color: var(--muted);
     font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
     cursor: pointer;
     transition: all .2s;
@@ -1060,11 +1060,22 @@
         <label>Law</label>
         <select id="f-law" onchange="applyFilters()">
           <option value="">All</option>
-          <option>Old law</option>
-          <option>New law  1. window</option>
-          <option>New law  2. window</option>
-          <option>New law  3. window</option>
-          <option>New law  4. window</option>
+          <option value="Old law">Old Law</option>
+          <option value="New law  1. window">1st GC Window</option>
+          <option value="New law  2. window">2nd GC Window</option>
+          <option value="New law  3. window">3rd GC Window</option>
+          <option value="New law  4. window">4th GC Window</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Permitting</label>
+        <select id="f-permit" onchange="applyFilters()">
+          <option value="">All</option>
+          <option value="Building Permit">Building Permit</option>
+          <option value="Urbanistic Plan Adopted">Urbanistic Plan Adopted</option>
+          <option value="Urbanistic Plan in preparation">Urbanistic Plan in prep.</option>
+          <option value="Location Conditions">Location Conditions</option>
+          <option value="Nothing (inactive)">Inactive</option>
         </select>
       </div>
       <button class="clear-btn" onclick="clearFilters()">✕ Clear</button>
@@ -1179,7 +1190,12 @@
             <div class="legend-dot" style="background:#a855f7"></div> Hybrid
           </button>
         </div>
-        <div style="font-size:12px;color:var(--muted)">Color = total MW per district</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="map-status-btn active" data-status="All" onclick="setMapStatus('All')" style="padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--accent);color:#0b0f1a;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer">All</button>
+          <button class="map-status-btn" data-status="In operation" onclick="setMapStatus('In operation')" style="padding:5px 12px;border-radius:6px;border:1px solid #22c55e44;background:transparent;color:#22c55e;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s">In Operation</button>
+          <button class="map-status-btn" data-status="In construction" onclick="setMapStatus('In construction')" style="padding:5px 12px;border-radius:6px;border:1px solid #0099ff44;background:transparent;color:#0099ff;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s">In Construction</button>
+          <button class="map-status-btn" data-status="In development" onclick="setMapStatus('In development')" style="padding:5px 12px;border-radius:6px;border:1px solid #47556944;background:transparent;color:#94a3b8;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s">In Development</button>
+        </div>
       </div>
       <div id="leaflet-map" style="height:560px;width:100%;border-radius:0 0 14px 14px;"></div>
     </div>
@@ -1440,16 +1456,18 @@ const PAGE_SIZE = 20;
 
 function getFiltered() {
   const q = (document.getElementById('search')?.value || '').toLowerCase();
-  const fTech = document.getElementById('f-tech')?.value || '';
+  const fTech   = document.getElementById('f-tech')?.value || '';
   const fStatus = document.getElementById('f-status')?.value || '';
-  const fProb = document.getElementById('f-prob')?.value || '';
-  const fLaw = document.getElementById('f-law')?.value || '';
+  const fProb   = document.getElementById('f-prob')?.value || '';
+  const fLaw    = document.getElementById('f-law')?.value || '';
+  const fPermit = document.getElementById('f-permit')?.value || '';
   return PROJECTS.filter(p => {
     if (q && !p.name.toLowerCase().includes(q) && !p.investor.toLowerCase().includes(q) && !p.location.toLowerCase().includes(q)) return false;
-    if (fTech && p.technology.trim() !== fTech) return false;
+    if (fTech   && p.technology.trim() !== fTech) return false;
     if (fStatus && p.status_overall !== fStatus) return false;
-    if (fProb && p.probability !== fProb) return false;
-    if (fLaw && p.law !== fLaw) return false;
+    if (fProb   && (p.probability||'').trim().toUpperCase() !== fProb.toUpperCase()) return false;
+    if (fLaw    && (p.law||'').trim() !== fLaw.trim()) return false;
+    if (fPermit && !(p.status_permitting||'').includes(fPermit)) return false;
     return true;
   }).sort((a, b) => {
     let va = a[sortField] ?? '', vb = b[sortField] ?? '';
@@ -1465,9 +1483,9 @@ function renderTable() {
   const page = data.slice(start, start + PAGE_SIZE);
   const tbody = document.getElementById('table-body');
   tbody.innerHTML = page.map(p => `
-    <tr>
+    <tr onclick="openProjSummary(${p.id})" style="cursor:pointer" onmouseover="this.style.background='rgba(255,255,255,.02)'" onmouseout="this.style.background=''">
       <td>
-        <div class="project-name">${p.name}</div>
+        <div class="project-name" style="color:var(--accent)">${p.name}</div>
       </td>
       <td><span class="investor-name">${p.investor}</span></td>
       <td style="font-size:12px;color:var(--muted)">${p.location}</td>
@@ -1477,7 +1495,7 @@ function renderTable() {
       <td><span class="${p.probability ? 'prob-'+p.probability : ''}">${p.probability || '—'}</span></td>
       <td style="font-size:11px;color:var(--muted);max-width:160px">${p.status_permitting}</td>
       <td style="font-size:11px;color:var(--muted)">${p.cfd}</td>
-      <td>${EDIT_USERS.has(currentUser) ? `<button onclick="openEditModal(${p.id})" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--muted);font-size:11px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">✏️ Edit</button>` : ''}</td>
+      <td>${EDIT_USERS.has(currentUser) ? `<button onclick="event.stopPropagation();openEditModal(${p.id})" style="background:transparent;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--muted);font-size:11px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">✏️ Edit</button>` : ''}</td>
     </tr>`).join('');
   renderPagination(data.length);
 }
@@ -1516,7 +1534,7 @@ function sortBy(field) {
 }
 function applyFilters() { currentPage = 1; renderTable(); }
 function clearFilters() {
-  ['search','f-tech','f-status','f-prob','f-law'].forEach(id => {
+  ['search','f-tech','f-status','f-prob','f-law','f-permit'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -1775,13 +1793,19 @@ function renderMap() {
     function showDistrictModal(name) {
       const techColors = { Wind:'#3b9eff', Solar:'#f5c842', Hybrid:'#a855f7', BESS:'#f97316' };
       const allProjs = getDistrictProjects(name);
-      const projs = (activeMapTech === 'All' ? allProjs : allProjs.filter(p => p.technology.trim() === activeMapTech))
+      const projs = allProjs
+        .filter(p => activeMapTech === 'All' || p.technology.trim() === activeMapTech)
+        .filter(p => activeMapStatus === 'All' || p.status_overall === activeMapStatus)
         .sort((a,b) => b.capacity_mw - a.capacity_mw);
       const totalMW = projs.reduce((s,p) => s+p.capacity_mw, 0);
       const techCount = {};
       projs.forEach(p => { const t=p.technology.trim(); techCount[t]=(techCount[t]||0)+1; });
 
-      document.getElementById('modal-inv-name').textContent = name + ' Okrug' + (activeMapTech !== 'All' ? ` · ${activeMapTech}` : '');
+      const filterLabel = [
+        activeMapTech !== 'All' ? activeMapTech : '',
+        activeMapStatus !== 'All' ? activeMapStatus : ''
+      ].filter(Boolean).join(' · ');
+      document.getElementById('modal-inv-name').textContent = name + ' Okrug' + (filterLabel ? ` · ${filterLabel}` : '');
       document.getElementById('modal-inv-stats').innerHTML = `
         <div class="modal-stat"><div class="modal-stat-val">${projs.length}</div><div class="modal-stat-label">Projects</div></div>
         <div class="modal-stat"><div class="modal-stat-val">${Math.round(totalMW)} MW</div><div class="modal-stat-label">Total</div></div>
@@ -1813,6 +1837,30 @@ function renderMap() {
 
     // Calculate MW per district for choropleth
     let activeMapTech = 'All';
+    let activeMapStatus = 'All';
+
+    window.setMapStatus = function(status) {
+      activeMapStatus = status;
+      document.querySelectorAll('.map-status-btn').forEach(function(b) {
+        const isActive = b.dataset.status === status;
+        b.style.background = isActive ? 'var(--accent)' : 'transparent';
+        b.style.color = isActive ? '#0b0f1a' : (
+          status === 'All' ? '' :
+          b.dataset.status === 'In operation' ? '#22c55e' :
+          b.dataset.status === 'In construction' ? '#0099ff' : '#94a3b8'
+        );
+        if (isActive) { b.style.color = '#0b0f1a'; b.style.borderColor = 'var(--accent)'; }
+        else {
+          b.style.borderColor = b.dataset.status === 'In operation' ? '#22c55e44' :
+            b.dataset.status === 'In construction' ? '#0099ff44' :
+            b.dataset.status === 'In development' ? '#47556944' : 'var(--border)';
+          b.style.color = b.dataset.status === 'In operation' ? '#22c55e' :
+            b.dataset.status === 'In construction' ? '#0099ff' :
+            b.dataset.status === 'In development' ? '#94a3b8' : 'var(--text)';
+        }
+      });
+      renderDistrictLayer();
+    };
     let districtLayer = null;
     let mapLegend = null;
 
@@ -1822,6 +1870,7 @@ function renderMap() {
         const name = f.properties.name;
         mw[name] = getDistrictProjects(name)
           .filter(p => tech === 'All' || p.technology.trim() === tech)
+          .filter(p => activeMapStatus === 'All' || p.status_overall === activeMapStatus)
           .reduce((s,p) => s + p.capacity_mw, 0);
       });
       return mw;
@@ -1829,7 +1878,8 @@ function renderMap() {
 
     function getMWColor(mw, minMW, maxMW) {
       if (mw === 0 || maxMW === 0) return '#0d1f35';
-      const t = Math.pow((mw - minMW) / (maxMW - minMW), 0.5);
+      // Always scale from 0 to maxMW, with minimum brightness of 0.25
+      const t = Math.max(0.25, Math.pow(mw / maxMW, 0.5));
       const techAccent = {
         Wind:   [0x3b,0x9e,0xff],
         Solar:  [0xf5,0xc8,0x42],
@@ -1867,7 +1917,7 @@ function renderMap() {
           const name = feature.properties.name;
           const mw = districtMW[name] || 0;
           const count = getDistrictProjects(name)
-            .filter(p => activeMapTech === 'All' || p.technology.trim() === activeMapTech).length;
+            .filter(p => activeMapTech === 'All' || p.technology.trim() === activeMapTech).filter(p => activeMapStatus === 'All' || p.status_overall === activeMapStatus).length;
           const origColor = getMWColor(mw, minMW, maxMW);
 
           layer.on('click', function() { showDistrictModal(name); });
@@ -2059,7 +2109,7 @@ function showStatusView(status) {
 
   // ── Shared helpers ──────────────────────────────────────────
   const card = (content, extra='') =>
-    `<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px 24px;${extra}">${content}</div>`;
+    `<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px 24px;box-sizing:border-box;${extra}">${content}</div>`;
   const sectionTitle = t =>
     `<div style="font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:14px">${t}</div>`;
   const statKpi = (label, value, col) =>
@@ -2218,25 +2268,57 @@ function showStatusView(status) {
         +'</div></div>';
     }).join('');
 
-    const probHtml = ['HIGH','LOW'].map(function(pr) {
-      const mw = probMW[pr];
-      const pct = totalMW ? Math.round(mw/totalMW*100) : 0;
-      const mwLabel = mw>=1000?(mw/1000).toFixed(1)+' GW':Math.round(mw)+' MW';
-      return '<div style="flex:1;background:var(--surface2);border-radius:10px;padding:12px;text-align:center;border:1px solid '+(pr==='HIGH'?'#22c55e33':'#ef444433')+'">'
-        +'<div style="font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:3px">'+pr+'</div>'
-        +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:20px;color:'+(pr==='HIGH'?'#22c55e':'#ef4444')+'">'+mwLabel+'</div>'
-        +'<div style="font-size:11px;color:'+(pr==='HIGH'?'#22c55e':'#ef4444')+';opacity:.7;margin-top:2px">'+pct+'%</div>'
-        +'</div>';
-    }).join('');
+    const totalProbMW = probMW.HIGH + probMW.LOW;
+    const highPct2 = totalMW ? Math.round(probMW.HIGH/totalMW*100) : 0;
+    const lowPct2  = totalMW ? Math.round(probMW.LOW/totalMW*100)  : 0;
+    const probHtml = 
+      // Two clickable tiles
+      '<div style="display:flex;gap:10px;margin-bottom:14px">'
+      + ['HIGH','LOW'].map(function(pr) {
+          const mw = probMW[pr];
+          const pct = totalMW ? Math.round(mw/totalMW*100) : 0;
+          const mwLabel = mw>=1000?(mw/1000).toFixed(1)+' GW':Math.round(mw)+' MW';
+          const col = pr==='HIGH' ? '#22c55e' : '#ef4444';
+          return '<div onclick="openProbModal(\''+pr+'\')" style="flex:1;background:var(--surface2);border-radius:12px;padding:16px;text-align:center;border:1px solid '+col+'33;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\''+col+'\';this.style.background=\''+col+'11\'" onmouseout="this.style.borderColor=\''+col+'33\';this.style.background=\'var(--surface2)\'">'
+            +'<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'+pr+'</div>'
+            +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:24px;color:'+col+';line-height:1">'+mwLabel+'</div>'
+            +'<div style="font-size:12px;color:'+col+';opacity:.7;margin-top:4px">'+pct+'% of total</div>'
+            +'</div>';
+        }).join('')
+      +'</div>'
+      // Combined bar
+      +'<div style="margin-bottom:10px">'
+      +'<div style="height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;display:flex">'
+      +'<div style="height:100%;width:'+highPct2+'%;background:#22c55e;border-radius:4px 0 0 4px"></div>'
+      +'<div style="height:100%;width:'+lowPct2+'%;background:#ef4444"></div>'
+      +'</div>'
+      +'<div style="display:flex;justify-content:space-between;margin-top:5px">'
+      +'<div style="font-size:10px;color:#22c55e">HIGH '+highPct2+'%</div>'
+      +'<div style="font-size:10px;color:#ef4444">LOW '+lowPct2+'%</div>'
+      +'</div>'
+      +'</div>';
 
-    const topInvHtml = topInv.slice(0,6).map(function(e) {
-      const inv=e[0],mw=e[1];
-      return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
-        +'<div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:65%">'+inv+'</div>'
-        +'<div style="font-size:12px;font-family:Syne,sans-serif;font-weight:700;color:'+color+'">'+(mw>=1000?(mw/1000).toFixed(1)+' GW':Math.round(mw)+' MW')+'</div>'
+    const topInvHtml = topInv.slice(0,3).map(function(e, i) {
+      const inv=e[0], mw=e[1];
+      const count = invCountAll[inv] || 0;
+      const mwLabel = mw>=1000?(mw/1000).toFixed(1)+' GW':Math.round(mw)+' MW';
+      const rankCol = ['#f5c842','#94a3b8','#cd7c3a','#475569','#475569'][i];
+      return '<div onclick="openInvDevModal(\''+inv.replace(/'/g,"\\'")+'\')" style="cursor:pointer;border-radius:8px;padding:5px 6px;margin:0 -6px 2px;transition:background .15s" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'transparent\'">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
+        +'<div style="display:flex;align-items:center;gap:9px">'
+        +'<div style="width:20px;height:20px;border-radius:6px;background:'+rankCol+'22;border:1px solid '+rankCol+'66;display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+        +'<span style="font-size:11px;font-family:Syne,sans-serif;font-weight:800;color:'+rankCol+'">'+(i+1)+'</span>'
         +'</div>'
-        +'<div style="height:4px;background:var(--surface2);border-radius:2px;margin-bottom:8px">'
-        +'<div style="height:100%;width:'+(mw/maxInv*100).toFixed(0)+'%;background:'+color+';border-radius:2px"></div></div>';
+        +'<div>'
+        +'<div style="font-size:12px;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">'+inv+'</div>'
+        +'<div style="font-size:10px;color:var(--muted)">'+count+' project'+(count!==1?'s':'')+'</div>'
+        +'</div>'
+        +'</div>'
+        +'<div style="font-size:12px;font-family:Syne,sans-serif;font-weight:700;color:'+color+'">'+mwLabel+'</div>'
+        +'</div>'
+        +'<div style="height:4px;background:var(--surface2);border-radius:2px;margin-bottom:2px">'
+        +'<div style="height:100%;width:'+(mw/maxInv*100).toFixed(0)+'%;background:'+color+';border-radius:2px"></div></div>'
+        +'</div>';
     }).join('');
 
     // Window panels
@@ -2359,10 +2441,10 @@ function showStatusView(status) {
 
     // Full layout: summary on top, windows below
     const summaryHtml =
-      '<div style="display:grid;grid-template-columns:1.2fr 1.2fr 1fr 1fr;gap:16px;margin-bottom:24px">'
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;margin-bottom:24px;align-items:stretch">'
       + card(sectionTitle('By Technology')+'<div style="display:flex;align-items:center;gap:12px">'+techDonutSvg+'<div style="flex:1">'+techLegendHtml+'</div></div>')
       + card(sectionTitle('By Regulatory Window')+lawBarsHtml)
-      + card(sectionTitle('Probability')+'<div style="display:flex;gap:10px">'+probHtml+'</div>')
+      + card(sectionTitle('Probability')+probHtml)
       + card(sectionTitle('Top Investors')+topInvHtml)
       + '</div>';
 
@@ -2463,7 +2545,380 @@ function showStatusView(status) {
   document.getElementById('status-view').scrollTop = 0;
 }
 
-// ===== EDIT PROJECT =====
+// ===== PROJECT SUMMARY MODAL =====
+let _psmProjectId = null;
+
+// ===== PROJECT SUMMARY MODAL =====
+
+function openProjSummary(id) {
+  id = parseInt(id);
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === id; });
+  if (!p) { console.warn('Project not found:', id); return; }
+  _psmProjectId = id;
+
+  // Show modal first
+  document.getElementById('proj-summary-modal').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  const techColors = { Wind:'#3b9eff', Solar:'#f5c842', Hybrid:'#a855f7', BESS:'#f97316' };
+  const statusColors = { 'In operation':'#22c55e','In construction':'#0099ff','Pre-construction':'#00e5a0','In development':'#475569' };
+  const LAW_LABELS = {'Old law':'Old Law','New law  1. window':'1st GC Window','New law  2. window':'2nd GC Window','New law  3. window':'3rd GC Window','New law  4. window':'4th GC Window'};
+  const tc = techColors[p.technology.trim()] || '#888';
+  const sc = statusColors[p.status_overall] || '#888';
+  const prob = (p.probability||'').trim().toUpperCase();
+
+  document.getElementById('psm-name').textContent = p.name;
+  document.getElementById('psm-sub').textContent = (p.investor||'') + ' · ' + (p.location||'');
+
+  document.getElementById('psm-edit-btn-wrap').innerHTML = EDIT_USERS.has(currentUser)
+    ? '<button onclick="openEditModal('+id+')" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">✏️ Edit</button>'
+    : '';
+
+  // Reset to overview tab
+  switchPsmTab('overview', document.querySelectorAll('.psm-tab')[0]);
+
+  // KPIs
+  document.getElementById('psm-kpis').innerHTML =
+    kpiBox('Capacity', p.capacity_mw + ' MW', tc) +
+    kpiBox('Status', p.status_overall, sc) +
+    kpiBox('Probability', prob||'—', prob==='HIGH'?'#22c55e':prob==='LOW'?'#ef4444':'#64748b');
+
+  document.getElementById('psm-details').innerHTML =
+    detailBox('Technology', '<span style="color:'+tc+'">'+p.technology.trim()+'</span>') +
+    detailBox('Regulatory Law', LAW_LABELS[p.law]||p.law||'—') +
+    detailBox('Permit Status', p.status_permitting||'—') +
+    detailBox('CFD / Support', p.cfd||'—');
+
+  const dlMatch = (p.comment||'').match(/deadline[^-]*[-]\s*(.+)/i);
+  const dl = dlMatch ? dlMatch[1].trim() : null;
+  document.getElementById('psm-deadline-wrap').innerHTML = dl
+    ? '<div style="background:#ef444411;border:1px solid #ef444433;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:10px;margin-top:4px">'
+      +'<div style="font-size:18px">⏱</div>'
+      +'<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:2px">Deadline</div>'
+      +'<div style="font-size:14px;font-weight:600;color:#ef4444">'+dl+'</div></div></div>'
+    : '';
+
+  renderSiteGrid(p);
+  renderPermitHistory(p);
+  renderRiskAnalysis(p);
+
+  const notes = p.notes || '';
+  document.getElementById('psm-notes-view').textContent = notes || 'No notes yet.';
+  document.getElementById('psm-notes-view').style.color = notes ? 'var(--text)' : 'var(--muted)';
+  document.getElementById('psm-notes-edit').style.display = 'none';
+  document.getElementById('psm-notes-view').style.display = 'block';
+  document.getElementById('psm-notes-btn-wrap').innerHTML = EDIT_USERS.has(currentUser)
+    ? '<button onclick="editNotes()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">✏️ Edit Notes</button>'
+    : '';
+}
+
+function renderRiskAnalysis(p) {
+  const isAdmin = EDIT_USERS.has(currentUser);
+  const prob = (p.probability||'').trim().toUpperCase();
+  const probCol = prob==='HIGH' ? '#22c55e' : prob==='LOW' ? '#ef4444' : '#64748b';
+  const factors = p.risk_factors || [];
+
+  // Verdict banner
+  document.getElementById('psm-risk-verdict').innerHTML =
+    '<div style="background:'+probCol+'11;border:1px solid '+probCol+'33;border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:14px;margin-bottom:4px">'
+    +'<div style="font-size:28px">'+(prob==='HIGH'?'✅':prob==='LOW'?'⚠️':'❓')+'</div>'
+    +'<div>'
+    +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:3px">Probability Assessment</div>'
+    +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:18px;color:'+probCol+'">'+(prob||'Not set')+'</div>'
+    +'<div style="font-size:12px;color:var(--muted);margin-top:2px">'
+    +(factors.length > 0 ? factors.length+' factor'+(factors.length!==1?'s':'')+' documented' : 'No factors documented yet')
+    +'</div></div></div>';
+
+  // Risk factors grouped by type
+  const typeConfig = {
+    positive: { label:'Positive Factors', icon:'✅', col:'#22c55e' },
+    negative: { label:'Risk Factors',     icon:'⚠️', col:'#ef4444' },
+    neutral:  { label:'Notes',            icon:'ℹ️',  col:'#64748b' },
+  };
+
+  let html = '';
+  ['positive','negative','neutral'].forEach(function(type) {
+    const items = factors.filter(function(f){ return f.type === type; });
+    if (!items.length) return;
+    const cfg = typeConfig[type];
+    html += '<div style="margin-bottom:16px">'
+      +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:'+cfg.col+';margin-bottom:8px;display:flex;align-items:center;gap:6px">'
+      +cfg.icon+' '+cfg.label+' ('+items.length+')'
+      +'</div>';
+    items.forEach(function(f, i) {
+      const globalIdx = factors.indexOf(f);
+      html += '<div style="display:flex;gap:10px;padding:10px 12px;background:'+cfg.col+'0a;border:1px solid '+cfg.col+'22;border-radius:10px;margin-bottom:6px">'
+        +'<div style="flex:1">'
+        +'<div style="font-size:11px;color:'+cfg.col+';font-weight:600;margin-bottom:3px">'+f.category+'</div>'
+        +'<div style="font-size:13px;color:var(--text);line-height:1.5">'+f.desc+'</div>'
+        +'</div>'
+        +(isAdmin?'<button onclick="deleteRiskFactor('+globalIdx+')" style="background:transparent;border:none;color:#475569;font-size:12px;cursor:pointer;align-self:flex-start;padding:2px" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕</button>':'')
+        +'</div>';
+    });
+    html += '</div>';
+  });
+
+  if (!factors.length) {
+    html = '<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">No risk factors documented yet.'+(isAdmin?' Use the button below to add factors.':'')+'</div>';
+  }
+
+  document.getElementById('psm-risk-factors').innerHTML = html;
+  document.getElementById('psm-risk-btns').innerHTML = isAdmin
+    ? '<button onclick="document.getElementById(\'psm-risk-add\').style.display=\'block\'" style="background:var(--accent);border:none;border-radius:8px;padding:8px 16px;color:#0b0f1a;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">+ Add Factor</button>'
+    : '';
+}
+
+async function addRiskFactor() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  const type = document.getElementById('risk-type').value;
+  const category = document.getElementById('risk-category').value;
+  const desc = document.getElementById('risk-desc').value.trim();
+  if (!desc) return;
+  p.risk_factors = p.risk_factors || [];
+  p.risk_factors.push({ type: type, category: category, desc: desc });
+  document.getElementById('risk-desc').value = '';
+  document.getElementById('psm-risk-add').style.display = 'none';
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({risk_factors:p.risk_factors})
+    });
+  } catch(e) {}
+  renderRiskAnalysis(p);
+}
+
+async function deleteRiskFactor(idx) {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  p.risk_factors = (p.risk_factors||[]).filter(function(_,i){ return i !== idx; });
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({risk_factors:p.risk_factors})
+    });
+  } catch(e) {}
+  renderRiskAnalysis(p);
+}
+
+
+function renderSiteGrid(p) {
+  const isAdmin = EDIT_USERS.has(currentUser);
+  const siteItems = [
+    { key:'site_complexity', label:'Complexity', opts:['','Complex','Moderate','Flat'] },
+    { key:'land_type', label:'Land Type', opts:['','Forest','Agricultural','Mixed'] },
+  ];
+  const gridItems = [
+    { key:'grid_type', label:'Connection Type', opts:['','Radial','Loop (ulaz-izlaz)'] },
+    { key:'grid_voltage', label:'Voltage Level', opts:['','400 kV','220 kV','110 kV','35 kV'] },
+  ];
+  function viewRow(label, val) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="font-size:12px;color:var(--muted)">'+label+'</div>'
+      +'<div style="font-size:13px;font-weight:500;color:var(--text)">'+(val||'<span style="color:var(--muted);font-size:11px">Not set</span>')+'</div>'
+      +'</div>';
+  }
+  function editSelect(item, val) {
+    return '<div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">'+item.label+'</div>'
+      +'<select id="sg-'+item.key+'" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px">'
+      +item.opts.map(function(o){ return '<option value="'+o+'"'+(o===val?' selected':'')+'>'+( o||'— Not set —')+'</option>'; }).join('')
+      +'</select></div>';
+  }
+  document.getElementById('psm-site-view').innerHTML =
+    viewRow('Complexity', p.site_complexity) + viewRow('Land Type', p.land_type);
+  document.getElementById('psm-site-edit').innerHTML =
+    siteItems.map(function(item){ return editSelect(item, p[item.key]||''); }).join('');
+  document.getElementById('psm-grid-view').innerHTML =
+    viewRow('Connection Type', p.grid_type) +
+    viewRow('Voltage Level', p.grid_voltage) +
+    viewRow('Line Length', p.grid_line_km ? p.grid_line_km+' km' : null);
+  document.getElementById('psm-grid-edit').innerHTML =
+    gridItems.map(function(item){ return editSelect(item, p[item.key]||''); }).join('')
+    + '<div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Line Length (km)</div>'
+    + '<input id="sg-grid_line_km" type="number" step="0.1" min="0" value="'+(p.grid_line_km||'')+'" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box" placeholder="e.g. 12.5"></div>';
+  document.getElementById('psm-site-edit').style.display = 'none';
+  document.getElementById('psm-grid-edit').style.display = 'none';
+  document.getElementById('psm-site-view').style.display = 'flex';
+  document.getElementById('psm-grid-view').style.display = 'flex';
+  document.getElementById('psm-site-btns').innerHTML = isAdmin
+    ? '<button onclick="editSiteGrid()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">✏️ Edit Site & Grid</button>'
+    : '';
+}
+
+function editSiteGrid() {
+  document.getElementById('psm-site-view').style.display = 'none';
+  document.getElementById('psm-grid-view').style.display = 'none';
+  document.getElementById('psm-site-edit').style.display = 'flex';
+  document.getElementById('psm-grid-edit').style.display = 'flex';
+  document.getElementById('psm-site-btns').innerHTML =
+    '<div style="display:flex;gap:8px">'
+    +'<button onclick="cancelSiteGrid()" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>'
+    +'<button onclick="saveSiteGrid()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">Save</button>'
+    +'</div>';
+}
+
+function cancelSiteGrid() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  renderSiteGrid(p);
+}
+
+async function saveSiteGrid() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  ['site_complexity','land_type','grid_type','grid_voltage'].forEach(function(k) {
+    const el = document.getElementById('sg-'+k);
+    if (el) p[k] = el.value;
+  });
+  const kmEl = document.getElementById('sg-grid_line_km');
+  p.grid_line_km = kmEl && kmEl.value ? parseFloat(kmEl.value) : null;
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({site_complexity:p.site_complexity,land_type:p.land_type,grid_type:p.grid_type,grid_voltage:p.grid_voltage,grid_line_km:p.grid_line_km})
+    });
+  } catch(e) {}
+  cancelSiteGrid();
+}
+
+function renderPermitHistory(p) {
+  const isAdmin = EDIT_USERS.has(currentUser);
+  const history = p.permit_history || [];
+  const sorted = history.slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  const rows = sorted.length === 0
+    ? '<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">No permit entries yet.</div>'
+    : sorted.map(function(e, i) {
+        return '<div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">'
+          +'<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;padding-top:4px">'
+          +'<div style="width:10px;height:10px;border-radius:50%;background:#00e5a0"></div>'
+          +(i<sorted.length-1?'<div style="width:2px;flex:1;background:var(--border);margin-top:4px"></div>':'')
+          +'</div>'
+          +'<div style="flex:1">'
+          +'<div style="display:flex;justify-content:space-between;align-items:flex-start">'
+          +'<div style="font-size:13px;font-weight:600;color:var(--text)">'+e.type+'</div>'
+          +'<div style="font-size:11px;color:var(--muted)">'+(e.date||'')+'</div>'
+          +'</div>'
+          +(e.desc?'<div style="font-size:12px;color:var(--muted);margin-top:3px">'+e.desc+'</div>':'')
+          +(isAdmin?'<button onclick="deletePermitEntry('+i+')" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer;padding:2px 0;margin-top:4px" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕ Remove</button>':'')
+          +'</div></div>';
+      }).join('');
+  document.getElementById('psm-permit-history').innerHTML =
+    '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:12px">Permit History ('+sorted.length+' entries)</div>'
+    + rows;
+  document.getElementById('psm-permit-btns').innerHTML = isAdmin
+    ? '<button onclick="document.getElementById(\'psm-permit-add\').style.display=\'block\'" style="background:var(--accent);border:none;border-radius:8px;padding:8px 16px;color:#0b0f1a;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">+ Add Entry</button>'
+    : '';
+}
+
+async function addPermitEntry() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  const date = document.getElementById('permit-date').value;
+  const type = document.getElementById('permit-type').value;
+  const desc = document.getElementById('permit-desc').value.trim();
+  if (!date || !type) return;
+  p.permit_history = p.permit_history || [];
+  p.permit_history.push({ date: date, type: type, desc: desc });
+  document.getElementById('permit-date').value = '';
+  document.getElementById('permit-desc').value = '';
+  document.getElementById('psm-permit-add').style.display = 'none';
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({permit_history:p.permit_history})
+    });
+  } catch(e) {}
+  renderPermitHistory(p);
+}
+
+async function deletePermitEntry(idx) {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  const sorted = (p.permit_history||[]).slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  const toRemove = sorted[idx];
+  p.permit_history = (p.permit_history||[]).filter(function(e){ return e !== toRemove; });
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({permit_history:p.permit_history})
+    });
+  } catch(e) {}
+  renderPermitHistory(p);
+}
+
+function switchPsmTab(tab, btn) {
+  ['overview','site','permits','risk','notes'].forEach(function(t) {
+    document.getElementById('psm-tab-'+t).style.display = t===tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('.psm-tab').forEach(function(b) {
+    b.style.borderBottomColor = 'transparent';
+    b.style.color = 'var(--muted)';
+    b.style.fontWeight = '';
+  });
+  btn.style.borderBottomColor = 'var(--accent)';
+  btn.style.color = 'var(--text)';
+  btn.style.fontWeight = '600';
+}
+
+
+function kpiBox(label, value, color) {
+  return '<div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center">'
+    +'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px">'+label+'</div>'
+    +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:16px;color:'+color+'">'+value+'</div>'
+    +'</div>';
+}
+
+function detailBox(label, value) {
+  return '<div style="background:var(--surface2);border-radius:10px;padding:12px">'
+    +'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px">'+label+'</div>'
+    +'<div style="font-size:13px;color:var(--text)">'+value+'</div>'
+    +'</div>';
+}
+
+function editNotes() {
+  const p = PROJECTS.find(function(x){ return x.id === _psmProjectId; });
+  document.getElementById('psm-notes-input').value = p.notes || '';
+  document.getElementById('psm-notes-view').style.display = 'none';
+  document.getElementById('psm-notes-edit').style.display = 'block';
+  document.getElementById('psm-notes-btn-wrap').innerHTML = '';
+  document.getElementById('psm-notes-input').focus();
+}
+
+function cancelNotesEdit() {
+  document.getElementById('psm-notes-edit').style.display = 'none';
+  document.getElementById('psm-notes-view').style.display = 'block';
+  document.getElementById('psm-notes-btn-wrap').innerHTML = EDIT_USERS.has(currentUser)
+    ? '<button onclick="editNotes()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--muted);font-size:12px;cursor:pointer">✏️ Edit Notes</button>'
+    : '';
+}
+
+async function saveNotes() {
+  const p = PROJECTS.find(function(x){ return x.id === _psmProjectId; });
+  if (!p) return;
+  p.notes = document.getElementById('psm-notes-input').value;
+  // Save to Supabase
+  try {
+    await fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
+      method: 'PATCH',
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ notes: p.notes })
+    });
+  } catch(e) {}
+  document.getElementById('psm-notes-view').textContent = p.notes || 'No notes yet.';
+  document.getElementById('psm-notes-view').style.color = p.notes ? 'var(--text)' : 'var(--muted)';
+  cancelNotesEdit();
+}
+
+function closeProjSummary() {
+  document.getElementById('proj-summary-modal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+
 let _editProjectId = null;
 
 function openEditModal(id) {
@@ -2508,6 +2963,34 @@ function closeEditModal() {
 
 
 let _pmProjs = [], _pmCol = '#00e5a0';
+
+function openInvDevModal(inv) {
+  const allDevProjs = PROJECTS.filter(function(p){ return p.status_overall === 'In development'; });
+  const win = {
+    projs: allDevProjs.filter(function(p){ return p.investor === inv; }),
+    label: inv,
+    col: '#475569'
+  };
+  window._devWindows = window._devWindows || [];
+  window._devWindows.push(win);
+  openProjModal(window._devWindows.length - 1);
+}
+
+function openProbModal(prob) {
+  const win = { 
+    projs: (window._devWindows || []).flatMap(function(w){ return w.projs; })
+             .filter(function(p){ return (p.probability||'').trim().toUpperCase() === prob; }),
+    label: prob + ' Probability Projects',
+    col: prob === 'HIGH' ? '#22c55e' : '#ef4444'
+  };
+  // Temporarily store and open
+  window._devWindows = window._devWindows || [];
+  window._devWindows.push(win);
+  openProjModal(window._devWindows.length - 1);
+  // Pre-filter by prob
+  document.getElementById('pm-prob').value = prob;
+  renderProjModal();
+}
 
 function openProjModal(wi) {
   const win = (window._devWindows||[])[wi];
@@ -2561,7 +3044,7 @@ function renderProjModal() {
         const deadline = getDeadline(p.comment);
         return '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)">'
           +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:13px;font-weight:600;color:var(--text)">'+p.name+'</div>'
+          +'<div onclick="openProjSummary('+p.id+')" style="font-size:13px;font-weight:600;color:var(--text);cursor:pointer;transition:color .15s" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'var(--text)\'">'+(p.name)+'</div>'
           +'<div style="font-size:11px;color:var(--muted);margin-top:2px">\uD83D\uDC64 '+p.investor+' \u00B7 \uD83D\uDCCD '+p.location+'</div>'
           +'<div style="display:flex;gap:6px;margin-top:5px;align-items:center;flex-wrap:wrap">'
           +'<span style="font-size:11px;background:'+tc+'22;color:'+tc+';padding:2px 8px;border-radius:8px">'+p.technology.trim()+'</span>'
@@ -2596,6 +3079,14 @@ async function loadProjectsFromDB() {
         p.probability       = row.probability;
         p.status_permitting = row.status_permitting;
         p.comment           = row.comment;
+        p.notes             = row.notes || '';
+        p.site_complexity   = row.site_complexity || '';
+        p.land_type         = row.land_type || '';
+        p.grid_type         = row.grid_type || '';
+        p.grid_voltage      = row.grid_voltage || '';
+        p.grid_line_km      = row.grid_line_km || null;
+        p.permit_history    = row.permit_history || [];
+        p.risk_factors      = row.risk_factors || [];
       }
     });
     console.log('Loaded ' + data.length + ' projects from Supabase');
@@ -2818,5 +3309,153 @@ function initApp() {
   renderTable();
 }
 </script>
+<!-- PROJECT SUMMARY MODAL -->
+<div id="proj-summary-modal" onclick="if(event.target===this)closeProjSummary()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:600;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:20px;width:min(780px,95vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.6)">
+
+    <!-- Header -->
+    <div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;flex-shrink:0">
+      <div>
+        <div id="psm-name" style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--text)"></div>
+        <div id="psm-sub" style="font-size:12px;color:var(--muted);margin-top:3px"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div id="psm-edit-btn-wrap"></div>
+        <button onclick="closeProjSummary()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;color:var(--muted);cursor:pointer;font-size:14px;flex-shrink:0">✕</button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;padding:0 24px">
+      <button class="psm-tab active" onclick="switchPsmTab('overview',this)" style="padding:10px 16px;background:transparent;border:none;border-bottom:2px solid var(--accent);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;font-weight:600">Overview</button>
+      <button class="psm-tab" onclick="switchPsmTab('site',this)" style="padding:10px 16px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">Site & Grid</button>
+      <button class="psm-tab" onclick="switchPsmTab('permits',this)" style="padding:10px 16px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">Permitting History</button>
+      <button class="psm-tab" onclick="switchPsmTab('risk',this)" style="padding:10px 16px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">Risk Analysis</button>
+      <button class="psm-tab" onclick="switchPsmTab('notes',this)" style="padding:10px 16px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">Notes</button>
+    </div>
+
+    <div style="overflow-y:auto;padding:20px 24px;flex:1">
+
+      <!-- OVERVIEW TAB -->
+      <div id="psm-tab-overview">
+        <div id="psm-kpis" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px"></div>
+        <div id="psm-details" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px"></div>
+        <div id="psm-deadline-wrap"></div>
+      </div>
+
+      <!-- SITE & GRID TAB -->
+      <div id="psm-tab-site" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <!-- Site -->
+          <div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">🏔 Site Characteristics</div>
+            <div id="psm-site-view" style="display:flex;flex-direction:column;gap:10px"></div>
+            <div id="psm-site-edit" style="display:none;flex-direction:column;gap:12px"></div>
+          </div>
+          <!-- Grid -->
+          <div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">⚡ Grid Connection</div>
+            <div id="psm-grid-view" style="display:flex;flex-direction:column;gap:10px"></div>
+            <div id="psm-grid-edit" style="display:none;flex-direction:column;gap:12px"></div>
+          </div>
+        </div>
+        <div id="psm-site-btns" style="margin-top:16px"></div>
+      </div>
+
+      <!-- PERMITS TAB -->
+      <div id="psm-tab-permits" style="display:none">
+        <div id="psm-permit-history" style="margin-bottom:16px"></div>
+        <div id="psm-permit-add" style="display:none;background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:12px">
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Add Permit Entry</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Date</div>
+              <input id="permit-date" type="date" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Permit Type</div>
+              <select id="permit-type" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px">
+                <option>Location Conditions</option>
+                <option>Urbanistic Plan Submitted</option>
+                <option>Urbanistic Plan Adopted</option>
+                <option>Building Permit Submitted</option>
+                <option>Building Permit Issued</option>
+                <option>Grid Connection Approval</option>
+                <option>Environmental Impact Assessment</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Description</div>
+            <input id="permit-desc" type="text" placeholder="e.g. Submitted application to municipality..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onclick="document.getElementById('psm-permit-add').style.display='none'" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>
+            <button onclick="addPermitEntry()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Add Entry</button>
+          </div>
+        </div>
+        <div id="psm-permit-btns"></div>
+      </div>
+
+      <!-- RISK ANALYSIS TAB -->
+      <div id="psm-tab-risk" style="display:none">
+        <!-- Probability verdict -->
+        <div id="psm-risk-verdict" style="margin-bottom:16px"></div>
+        <!-- Risk factors list -->
+        <div id="psm-risk-factors" style="margin-bottom:16px"></div>
+        <!-- Add risk factor (admin) -->
+        <div id="psm-risk-add" style="display:none;background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:12px">
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Add Risk Factor</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Type</div>
+              <select id="risk-type" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px">
+                <option value="positive">✅ Positive</option>
+                <option value="negative">⚠️ Risk</option>
+                <option value="neutral">ℹ️ Note</option>
+              </select>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Category</div>
+              <select id="risk-category" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px">
+                <option>Permitting</option>
+                <option>Grid Connection</option>
+                <option>Land / Site</option>
+                <option>Investor / Finance</option>
+                <option>Regulatory</option>
+                <option>Technical</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Description</div>
+            <textarea id="risk-desc" rows="2" placeholder="Explain this risk factor or positive aspect..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;resize:none;outline:none;box-sizing:border-box"></textarea>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onclick="document.getElementById('psm-risk-add').style.display='none'" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>
+            <button onclick="addRiskFactor()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Add</button>
+          </div>
+        </div>
+        <div id="psm-risk-btns"></div>
+      </div>
+
+      <!-- NOTES TAB -->
+      <div id="psm-tab-notes" style="display:none">
+        <div id="psm-notes-view" style="font-size:13px;color:var(--muted);background:var(--surface2);border-radius:10px;padding:14px;min-height:80px;line-height:1.7;white-space:pre-wrap;margin-bottom:10px"></div>
+        <div id="psm-notes-edit" style="display:none">
+          <textarea id="psm-notes-input" style="width:100%;background:var(--surface2);border:1px solid var(--accent);border-radius:10px;padding:14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;resize:vertical;min-height:120px;outline:none;box-sizing:border-box;line-height:1.7"></textarea>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button onclick="cancelNotesEdit()" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-family:'DM Sans',sans-serif;cursor:pointer">Cancel</button>
+            <button onclick="saveNotes()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Save Notes</button>
+          </div>
+        </div>
+        <div id="psm-notes-btn-wrap"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
 </body>
 </html>
