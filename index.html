@@ -255,6 +255,37 @@
 
   .logout-btn:hover { border-color: var(--danger); color: var(--danger); }
 
+  /* FLOATING CHAT */
+  #float-chat-btn {
+    position: fixed;
+    bottom: 28px; right: 28px;
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    cursor: pointer;
+    font-size: 22px;
+    box-shadow: 0 4px 20px rgba(0,229,160,.35);
+    z-index: 300;
+    transition: transform .2s, box-shadow .2s;
+  }
+  #float-chat-btn:hover { transform: scale(1.1); box-shadow: 0 6px 28px rgba(0,229,160,.5); }
+  #float-chat-panel {
+    position: fixed;
+    bottom: 92px; right: 28px;
+    width: 380px; max-height: 520px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    box-shadow: 0 16px 48px rgba(0,0,0,.6);
+    z-index: 300;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    animation: fadeIn .2s ease;
+  }
+  #float-chat-panel.open { display: flex; }
+
   /* VIEWS */
   .view { display: none; padding: 32px; }
   .view.active { display: block; animation: fadeIn .3s ease; }
@@ -999,6 +1030,7 @@
       <button class="nav-btn active" onclick="showView('overview')">Overview</button>
       <button class="nav-btn" onclick="showView('table')">Table</button>
       <button class="nav-btn" onclick="showView('map')">Map</button>
+      <button class="nav-btn" onclick="showView('ai')" style="color:var(--accent)">✦ Ask AI</button>
     </nav>
     <button class="logout-btn" onclick="doLogout()">Sign out</button>
   </header>
@@ -1203,6 +1235,39 @@
 </div>
 
 <!-- AI VIEW -->
+<div class="view" id="ai-view" style="padding:32px;max-width:860px;margin:0 auto">
+  <div class="section-title">✦ Ask AI</div>
+  <div class="section-sub">Postavi pitanje o srpskom tržištu obnovljive energije — projektima, investitorima, kapacitetima, statusima, rokovima</div>
+
+  <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;gap:10px">
+    <div style="font-size:13px;color:var(--muted)">✦ AI chat je aktivan i spreman za upite</div>
+  </div>
+
+  <div id="ai-suggestions" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px">
+    <button class="ai-suggest-btn" onclick="askSuggestion(this)">Koji su najveći vetroparkovi u razvoju?</button>
+    <button class="ai-suggest-btn" onclick="askSuggestion(this)">Koji investitori imaju najviše kapaciteta?</button>
+    <button class="ai-suggest-btn" onclick="askSuggestion(this)">Prikaži sve CWP projekte</button>
+    <button class="ai-suggest-btn" onclick="askSuggestion(this)">Koji projekti imaju rok za građevinsku dozvolu u 2028?</button>
+    <button class="ai-suggest-btn" onclick="askSuggestion(this)">Uporedi HIGH vs LOW projekte po MW</button>
+  </div>
+
+  <div id="ai-messages" style="display:flex;flex-direction:column;gap:16px;margin-bottom:20px;min-height:80px"></div>
+
+  <div style="display:flex;gap:10px;align-items:flex-end">
+    <textarea id="ai-input" placeholder="Postavi pitanje o bilo kom projektu, investitoru, lokaciji..."
+      style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;resize:none;outline:none;min-height:52px;max-height:140px;transition:border-color .2s;line-height:1.5"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAI()}"
+      oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,140)+'px'"
+      onfocus="this.style.borderColor='var(--accent)'"
+      onblur="this.style.borderColor='var(--border)'"></textarea>
+    <button onclick="sendAI()" id="ai-send-btn"
+      style="background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:12px;padding:14px 20px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:opacity .2s;white-space:nowrap;height:52px">
+      Pošalji ↑
+    </button>
+  </div>
+  <div style="font-size:11px;color:var(--muted);margin-top:8px">Enter za slanje · Shift+Enter za novi red</div>
+</div>
+
 <!-- STATUS FULLSCREEN VIEW -->
 <div id="status-view" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:200;overflow-y:auto">
   <div id="sv-inner" style="width:100%;padding:28px 40px;box-sizing:border-box">
@@ -2545,6 +2610,143 @@ function showStatusView(status) {
   document.getElementById('status-view').scrollTop = 0;
 }
 
+// ===== AI CHAT =====
+let aiHistory = [];
+
+function buildProjectContext() {
+  return PROJECTS.map(function(p) {
+    return p.name+' | '+p.investor+' | '+p.location+' | '+p.capacity_mw+'MW | '+p.technology+' | '+p.status_overall+' | Permitting: '+p.status_permitting+' | Law: '+p.law+' | Probability: '+(p.probability||'N/A')+' | '+p.comment;
+  }).join('\n');
+}
+
+function buildProductionContext() {
+  return Object.entries(PRODUCTION_DATA).map(function(e) {
+    const name = e[0], d = e[1];
+    const years = Object.entries(d.data).map(function(y) {
+      return y[0]+': '+y[1][0].toFixed(1)+'GWh / CF '+y[1][1].toFixed(1)+'%';
+    }).join(' | ');
+    return name+' | '+d.mw+'MW | '+d.turbine+' | Hub '+d.hub+'m | Avg CF: '+d.avg_cf.toFixed(2)+'% | '+years;
+  }).join('\n');
+}
+
+function getAISystem() {
+  return 'Ti si ekspert analitičar srpskog tržišta obnovljive energije. Odgovaraj na srpskom jeziku, jasno i strukturirano. Koristi kratke pasuse. Kada navodiš projekte, investitore ili brojke — koristi **bold** za isticanje. Za liste koristi - na početku reda. Budi koncizan ali informativan.\n\nPodaci o svim projektima:\n'+buildProjectContext()+'\n\nPodaci o proizvodnji vetroelektrana u operaciji (godišnja proizvodnja i Capacity Factor):\n'+buildProductionContext();
+}
+
+async function sendAI() {
+  const input = document.getElementById('ai-input');
+  const msgs = document.getElementById('ai-messages');
+  const q = input.value.trim();
+  if (!q) return;
+
+  const apiKey = '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';
+
+  msgs.innerHTML += '<div class="ai-msg-user">'+q+'</div>';
+  input.value = ''; input.style.height = 'auto';
+
+  const thinkId = 'think_'+Date.now();
+  msgs.innerHTML += '<div class="ai-thinking" id="'+thinkId+'"><span></span><span></span><span></span> Analiziram...</div>';
+  msgs.scrollTop = msgs.scrollHeight;
+  aiHistory.push({ role:'user', content:q });
+
+  const btn = document.getElementById('ai-send-btn');
+  btn.disabled = true; btn.style.opacity = '.5';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+      body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1500, system:getAISystem(), messages:aiHistory })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const reply = data.content?.[0]?.text || 'Nema odgovora.';
+    aiHistory.push({ role:'assistant', content:reply });
+    document.getElementById(thinkId)?.remove();
+
+    // Rich markdown rendering
+    const html = reply
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\*\*(.*?)\*\*/g,'<strong style="color:var(--text)">$1</strong>')
+      .replace(/\*(.*?)\*/g,'<em>$1</em>')
+      .replace(/^### (.*)/gm,'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:14px;color:var(--accent);margin:14px 0 6px">$1</div>')
+      .replace(/^## (.*)/gm,'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:16px;color:var(--text);margin:16px 0 8px;border-bottom:1px solid var(--border);padding-bottom:4px">$1</div>')
+      .replace(/^- (.*)/gm,'<div style="display:flex;gap:8px;margin:3px 0"><span style="color:var(--accent);flex-shrink:0">•</span><span>$1</span></div>')
+      .replace(/\n\n/g,'<div style="height:8px"></div>')
+      .replace(/\n/g,'<br>');
+
+    msgs.innerHTML += '<div class="ai-msg-assistant" style="line-height:1.6">'+html+'</div>';
+  } catch(e) {
+    document.getElementById(thinkId)?.remove();
+    msgs.innerHTML += '<div class="ai-msg-assistant" style="border-color:#ef4444;color:#ef4444">Greška: '+e.message+'</div>';
+  }
+  btn.disabled = false; btn.style.opacity = '1';
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function askSuggestion(btn) {
+  document.getElementById('ai-input').value = btn.textContent;
+  sendAI();
+}
+
+// ===== FLOATING CHAT =====
+let floatAiHistory = [];
+
+function toggleFloatChat() {
+  const panel = document.getElementById('float-chat-panel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    setTimeout(function(){ document.getElementById('float-ai-input').focus(); }, 100);
+  }
+}
+
+async function sendFloatAI() {
+  const input = document.getElementById('float-ai-input');
+  const msgs = document.getElementById('float-ai-messages');
+  const q = input.value.trim();
+  if (!q) return;
+
+  const apiKey = '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';
+
+  msgs.innerHTML += '<div style="align-self:flex-end;background:var(--accent);color:#0b0f1a;padding:7px 12px;border-radius:12px 12px 2px 12px;font-size:13px;max-width:85%">'+q+'</div>';
+  input.value = ''; input.style.height = 'auto';
+
+  const thinkId = 'fthink_'+Date.now();
+  msgs.innerHTML += '<div id="'+thinkId+'" style="align-self:flex-start;color:var(--muted);font-size:12px;padding:4px 0">⋯</div>';
+  msgs.scrollTop = msgs.scrollHeight;
+  floatAiHistory.push({ role:'user', content:q });
+
+  const btn = document.getElementById('float-ai-btn');
+  btn.disabled = true; btn.style.opacity = '.5';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+      body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:800, system:getAISystem(), messages:floatAiHistory })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const reply = data.content?.[0]?.text || 'Nema odgovora.';
+    floatAiHistory.push({ role:'assistant', content:reply });
+    document.getElementById(thinkId)?.remove();
+
+    const html = reply
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+      .replace(/^- (.*)/gm,'<div style="display:flex;gap:6px;margin:2px 0"><span style="color:var(--accent)">•</span><span>$1</span></div>')
+      .replace(/\n\n/g,'<div style="height:6px"></div>')
+      .replace(/\n/g,'<br>');
+
+    msgs.innerHTML += '<div style="align-self:flex-start;background:var(--surface2);color:var(--text);padding:8px 12px;border-radius:2px 12px 12px 12px;font-size:13px;max-width:90%;line-height:1.5;border:1px solid var(--border)">'+html+'</div>';
+  } catch(e) {
+    document.getElementById(thinkId)?.remove();
+    msgs.innerHTML += '<div style="align-self:flex-start;color:#ef4444;font-size:12px">Greška: '+e.message+'</div>';
+  }
+  btn.disabled = false; btn.style.opacity = '1';
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
 // ===== PROJECT SUMMARY MODAL =====
 let _psmProjectId = null;
 
@@ -2783,47 +2985,88 @@ async function saveSiteGrid() {
   cancelSiteGrid();
 }
 
+const DEFAULT_ASPECTS = ['Urbanizam', 'Elektrana'];
+let _activeAspect = null;
+
 function renderPermitHistory(p) {
   const isAdmin = EDIT_USERS.has(currentUser);
-  const history = p.permit_history || [];
-  const sorted = history.slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
-  const rows = sorted.length === 0
-    ? '<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">No permit entries yet.</div>'
-    : sorted.map(function(e, i) {
-        return '<div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">'
-          +'<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;padding-top:4px">'
-          +'<div style="width:10px;height:10px;border-radius:50%;background:#00e5a0"></div>'
-          +(i<sorted.length-1?'<div style="width:2px;flex:1;background:var(--border);margin-top:4px"></div>':'')
-          +'</div>'
-          +'<div style="flex:1">'
-          +'<div style="display:flex;justify-content:space-between;align-items:flex-start">'
-          +'<div style="font-size:13px;font-weight:600;color:var(--text)">'+e.type+'</div>'
-          +'<div style="font-size:11px;color:var(--muted)">'+(e.date||'')+'</div>'
-          +'</div>'
-          +(e.desc?'<div style="font-size:12px;color:var(--muted);margin-top:3px">'+e.desc+'</div>':'')
-          +(isAdmin?'<button onclick="deletePermitEntry('+i+')" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer;padding:2px 0;margin-top:4px" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕ Remove</button>':'')
-          +'</div></div>';
-      }).join('');
-  document.getElementById('psm-permit-history').innerHTML =
-    '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:12px">Permit History ('+sorted.length+' entries)</div>'
-    + rows;
+  if (!p.permit_history || Array.isArray(p.permit_history)) {
+    const oldEntries = Array.isArray(p.permit_history) ? p.permit_history : [];
+    p.permit_history = {};
+    DEFAULT_ASPECTS.forEach(function(a){ p.permit_history[a] = []; });
+    if (oldEntries.length) p.permit_history['Urbanizam'] = oldEntries;
+  }
+  DEFAULT_ASPECTS.forEach(function(a){ if (!p.permit_history[a]) p.permit_history[a] = []; });
+
+  const aspects = Object.keys(p.permit_history);
+  const statusCol = { Submitted:'#f5c842', Approved:'#22c55e', Rejected:'#ef4444', 'In Review':'#3b9eff', Other:'#64748b' };
+
+  const aspectBlocks = aspects.map(function(asp) {
+    const entries = (p.permit_history[asp]||[]).slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+
+    const rows = entries.length === 0
+      ? '<div style="font-size:12px;color:var(--muted);padding:6px 0 4px;font-style:italic">No entries yet.</div>'
+      : entries.map(function(e, i) {
+          const col = statusCol[e.type] || '#64748b';
+          return '<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid rgba(30,45,71,.5)">'
+            +'<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;padding-top:3px">'
+            +'<div style="width:8px;height:8px;border-radius:50%;background:'+col+'"></div>'
+            +(i<entries.length-1?'<div style="width:2px;flex:1;background:var(--border);margin-top:3px"></div>':'')
+            +'</div>'
+            +'<div style="flex:1">'
+            +'<div style="display:flex;justify-content:space-between;align-items:baseline">'
+            +'<div style="font-size:12px;font-weight:600;color:'+col+'">'+e.type+'</div>'
+            +'<div style="font-size:11px;color:var(--muted)">'+(e.date||'')+'</div>'
+            +'</div>'
+            +(e.desc?'<div style="font-size:12px;color:var(--muted);margin-top:1px">'+e.desc+'</div>':'')
+            +(isAdmin?'<button onclick="deletePermitEntry(\''+asp.replace(/'/g,"\\'")+'\','+i+')" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer;margin-top:2px" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕ Remove</button>':'')
+            +'</div></div>';
+        }).join('');
+
+    const isCustom = !DEFAULT_ASPECTS.includes(asp);
+
+    return '<div style="margin-bottom:20px">'
+      // Aspect header
+      +'<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid var(--accent);padding-bottom:6px;margin-bottom:10px">'
+      +'<div style="font-size:13px;font-weight:700;color:var(--text)">'+asp+'</div>'
+      +'<div style="display:flex;gap:8px;align-items:center">'
+      +(entries.length?'<div style="font-size:11px;color:var(--muted)">'+entries.length+' entr'+(entries.length===1?'y':'ies')+'</div>':'')
+      +(isAdmin && isCustom?'<button onclick="deleteAspect(\''+asp.replace(/'/g,"\\'")+'\',event)" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕</button>':'')
+      +'</div>'
+      +'</div>'
+      // Entries
+      + rows
+      // Add entry button
+      +(isAdmin?'<button onclick="showAddPermitForm(\''+asp.replace(/'/g,"\\'")+'\',this)" style="margin-top:8px;background:transparent;border:1px solid #1e2d47;border-radius:7px;padding:4px 12px;color:var(--muted);font-size:11px;cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'#1e2d47\';this.style.color=\'var(--muted)\'">+ Add Entry</button>':'')
+      +'</div>';
+  }).join('');
+
+  document.getElementById('psm-aspects-list').innerHTML = aspectBlocks;
+
   document.getElementById('psm-permit-btns').innerHTML = isAdmin
-    ? '<button onclick="document.getElementById(\'psm-permit-add\').style.display=\'block\'" style="background:var(--accent);border:none;border-radius:8px;padding:8px 16px;color:#0b0f1a;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">+ Add Entry</button>'
+    ? '<button onclick="document.getElementById(\'psm-new-aspect-form\').style.display=\'block\'" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:7px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">+ New Aspect</button>'
     : '';
+}
+
+function showAddPermitForm(asp, btn) {
+  _activeAspect = asp;
+  document.getElementById('psm-aspect-add-form').style.display = 'block';
+  document.getElementById('permit-date').value = '';
+  document.getElementById('permit-desc').value = '';
+  document.getElementById('psm-aspect-add-form').dataset.aspect = asp;
 }
 
 async function addPermitEntry() {
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
   if (!p) return;
+  const asp = document.getElementById('psm-aspect-add-form').dataset.aspect || _activeAspect;
   const date = document.getElementById('permit-date').value;
   const type = document.getElementById('permit-type').value;
   const desc = document.getElementById('permit-desc').value.trim();
-  if (!date || !type) return;
-  p.permit_history = p.permit_history || [];
-  p.permit_history.push({ date: date, type: type, desc: desc });
-  document.getElementById('permit-date').value = '';
-  document.getElementById('permit-desc').value = '';
-  document.getElementById('psm-permit-add').style.display = 'none';
+  if (!date) return;
+  if (!p.permit_history[asp]) p.permit_history[asp] = [];
+  p.permit_history[asp].push({ date: date, type: type, desc: desc });
+  document.getElementById('psm-aspect-add-form').style.display = 'none';
   try {
     await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
       method:'PATCH',
@@ -2834,12 +3077,47 @@ async function addPermitEntry() {
   renderPermitHistory(p);
 }
 
-async function deletePermitEntry(idx) {
+async function deletePermitEntry(asp, idx) {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p || !p.permit_history[asp]) return;
+  const sorted = p.permit_history[asp].slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  const toRemove = sorted[idx];
+  p.permit_history[asp] = p.permit_history[asp].filter(function(e){ return e !== toRemove; });
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({permit_history:p.permit_history})
+    });
+  } catch(e) {}
+  renderPermitHistory(p);
+}
+
+async function addNewAspect() {
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
   if (!p) return;
-  const sorted = (p.permit_history||[]).slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
-  const toRemove = sorted[idx];
-  p.permit_history = (p.permit_history||[]).filter(function(e){ return e !== toRemove; });
+  const name = document.getElementById('new-aspect-name').value.trim();
+  if (!name) return;
+  if (!p.permit_history[name]) p.permit_history[name] = [];
+  document.getElementById('new-aspect-name').value = '';
+  document.getElementById('psm-new-aspect-form').style.display = 'none';
+  _activeAspect = name;
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({permit_history:p.permit_history})
+    });
+  } catch(e) {}
+  renderPermitHistory(p);
+}
+
+async function deleteAspect(asp, event) {
+  event.stopPropagation();
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  delete p.permit_history[asp];
+  if (_activeAspect === asp) _activeAspect = Object.keys(p.permit_history)[0] || null;
   try {
     await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
       method:'PATCH',
@@ -3364,8 +3642,8 @@ function initApp() {
 
       <!-- PERMITS TAB -->
       <div id="psm-tab-permits" style="display:none">
-        <div id="psm-permit-history" style="margin-bottom:16px"></div>
-        <div id="psm-permit-add" style="display:none;background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:12px">
+        <div id="psm-aspects-list" style="margin-bottom:12px"></div>
+        <div id="psm-aspect-add-form" style="display:none;background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:12px">
           <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Add Permit Entry</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
             <div>
@@ -3373,29 +3651,35 @@ function initApp() {
               <input id="permit-date" type="date" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
             </div>
             <div>
-              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Permit Type</div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Status</div>
               <select id="permit-type" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px">
-                <option>Location Conditions</option>
-                <option>Urbanistic Plan Submitted</option>
-                <option>Urbanistic Plan Adopted</option>
-                <option>Building Permit Submitted</option>
-                <option>Building Permit Issued</option>
-                <option>Grid Connection Approval</option>
-                <option>Environmental Impact Assessment</option>
+                <option>Submitted</option>
+                <option>Approved</option>
+                <option>Rejected</option>
+                <option>In Review</option>
                 <option>Other</option>
               </select>
             </div>
           </div>
           <div style="margin-bottom:10px">
             <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Description</div>
-            <input id="permit-desc" type="text" placeholder="e.g. Submitted application to municipality..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+            <input id="permit-desc" type="text" placeholder="Opis aktivnosti..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
           </div>
           <div style="display:flex;gap:8px">
-            <button onclick="document.getElementById('psm-permit-add').style.display='none'" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>
+            <button onclick="document.getElementById('psm-aspect-add-form').style.display='none'" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>
             <button onclick="addPermitEntry()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Add Entry</button>
           </div>
         </div>
         <div id="psm-permit-btns"></div>
+        <!-- Add custom aspect form -->
+        <div id="psm-new-aspect-form" style="display:none;background:var(--surface2);border-radius:12px;padding:16px;margin-top:10px">
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px">New Aspect</div>
+          <input id="new-aspect-name" type="text" placeholder="e.g. Kablovska trasa, Priključni vod..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box;margin-bottom:10px">
+          <div style="display:flex;gap:8px">
+            <button onclick="document.getElementById('psm-new-aspect-form').style.display='none'" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>
+            <button onclick="addNewAspect()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Add Aspect</button>
+          </div>
+        </div>
       </div>
 
       <!-- RISK ANALYSIS TAB -->
@@ -3457,5 +3741,32 @@ function initApp() {
     </div>
   </div>
 </div>
+<!-- FLOATING CHAT -->
+<button id="float-chat-btn" onclick="toggleFloatChat()" title="Ask AI">✦</button>
+
+<div id="float-chat-panel">
+  <!-- Header -->
+  <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0">
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--accent)">✦ Ask AI</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:1px">Serbia RE Intelligence</div>
+    </div>
+    <button onclick="toggleFloatChat()" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:4px">✕</button>
+  </div>
+  <!-- Messages -->
+  <div id="float-ai-messages" style="flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-height:0"></div>
+  <!-- Input -->
+  <div style="padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0">
+    <textarea id="float-ai-input" placeholder="Postavi pitanje..." rows="1"
+      style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;resize:none;outline:none;line-height:1.4;max-height:80px;transition:border-color .2s"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendFloatAI()}"
+      oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'"
+      onfocus="this.style.borderColor='var(--accent)'"
+      onblur="this.style.borderColor='var(--border)'"></textarea>
+    <button onclick="sendFloatAI()" id="float-ai-btn"
+      style="background:var(--accent);border:none;border-radius:10px;padding:8px 14px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;align-self:flex-end;transition:opacity .2s">↑</button>
+  </div>
+</div>
+
 </body>
 </html>
