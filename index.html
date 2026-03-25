@@ -2624,7 +2624,49 @@ let aiHistory = [];
 
 function buildProjectContext() {
   return PROJECTS.map(function(p) {
-    return p.name+' | '+p.investor+' | '+p.location+' | '+p.capacity_mw+'MW | '+p.technology+' | '+p.status_overall+' | Permitting: '+p.status_permitting+' | Law: '+p.law+' | Probability: '+(p.probability||'N/A')+' | '+p.comment;
+    let line = p.name+' | '+p.investor+' | '+p.location+' | '+p.capacity_mw+'MW | '+p.technology
+      +' | '+p.status_overall+' | Permitting: '+p.status_permitting
+      +' | Law: '+p.law+' | Probability: '+(p.probability||'N/A')
+      +' | CFD: '+(p.cfd||'N/A')
+      +' | Energetska dozvola: '+(p.energy_license||'N/A')
+      +' | '+p.comment;
+
+    if (p.site_complexity) line += ' | Site: '+p.site_complexity;
+    if (p.land_type)       line += ' | Land: '+p.land_type;
+    if (p.grid_type)       line += ' | Grid: '+p.grid_type;
+    if (p.grid_voltage)    line += ' | Voltage: '+p.grid_voltage;
+    if (p.grid_line_km)    line += ' | Line: '+p.grid_line_km+'km';
+
+    if (p.notes) line += ' | Notes: '+p.notes;
+
+    if (p.risk_factors && p.risk_factors.length) {
+      const rf = p.risk_factors.map(function(r){ return r.type+'('+r.category+'): '+r.desc; }).join('; ');
+      line += ' | Risk factors: '+rf;
+    }
+
+    if (p.permit_history && typeof p.permit_history === 'object' && !Array.isArray(p.permit_history)) {
+      const ph = Object.entries(p.permit_history).map(function(kv) {
+        const asp = kv[0], entries = kv[1];
+        if (!entries || !entries.length) return null;
+        const entryStr = entries.map(function(e) {
+          if (e.name) {
+            // process entry
+            let s = e.name;
+            if (e.date_submitted) s += ' podneto:'+e.date_submitted;
+            if (e.dates_rejected && e.dates_rejected.length) s += ' odbijeno:'+e.dates_rejected.join(',');
+            if (e.date_approved)  s += ' odobreno:'+e.date_approved;
+            if (e.case_num)       s += ' br.predmeta:'+e.case_num;
+            return s;
+          } else {
+            return (e.type||'')+' '+( e.date||'')+( e.case_num?' br:'+e.case_num:'')+(e.desc?' - '+e.desc:'');
+          }
+        }).filter(Boolean).join(' / ');
+        return asp+': '+entryStr;
+      }).filter(Boolean).join(' | ');
+      if (ph) line += ' | Permitting history: '+ph;
+    }
+
+    return line;
   }).join('\n');
 }
 
@@ -2648,7 +2690,7 @@ async function sendAI() {
   const q = input.value.trim();
   if (!q) return;
 
-  const apiKey = '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';
+  const apiKey = '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';
 
   msgs.innerHTML += '<div class="ai-msg-user">'+q+'</div>';
   input.value = ''; input.style.height = 'auto';
@@ -2715,7 +2757,7 @@ async function sendFloatAI() {
   const q = input.value.trim();
   if (!q) return;
 
-  const apiKey = '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';
+  const apiKey = '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';
 
   msgs.innerHTML += '<div style="align-self:flex-end;background:var(--accent);color:#0b0f1a;padding:7px 12px;border-radius:12px 12px 2px 12px;font-size:13px;max-width:85%">'+q+'</div>';
   input.value = ''; input.style.height = 'auto';
@@ -2997,8 +3039,15 @@ async function saveSiteGrid() {
   cancelSiteGrid();
 }
 
-const DEFAULT_ASPECTS = ['Urbanizam', 'Elektrana', 'Energetska Dozvola'];
+const DEFAULT_ASPECTS = ['Urbanizam', 'Energetska Dozvola'];
+const CUSTOM_ASPECTS_START = ['Elektrana']; // pre-added but free-form
 let _activeAspect = null;
+
+// Structured processes for fixed aspects
+const STRUCTURED_PROCESSES = {
+  'Urbanizam': ['Lokacijski uslovi', 'Urbanistički plan', 'Građevinska dozvola'],
+  'Energetska Dozvola': ['Zahtev za ED', 'Energetska dozvola izdata']
+};
 
 function renderPermitHistory(p) {
   const isAdmin = EDIT_USERS.has(currentUser);
@@ -3011,74 +3060,512 @@ function renderPermitHistory(p) {
   DEFAULT_ASPECTS.forEach(function(a){ if (!p.permit_history[a]) p.permit_history[a] = []; });
 
   const aspects = Object.keys(p.permit_history);
-  const statusCol = { Submitted:'#f5c842', Approved:'#22c55e', Rejected:'#ef4444', 'In Review':'#3b9eff', Other:'#64748b' };
+  const statusCol = { Submitted:'#f5c842', Approved:'#22c55e', Rejected:'#ef4444' };
+
+  const aspId = function(asp) { return 'asp_'+asp.replace(/[^a-zA-Z0-9]/g,'_'); };
 
   const aspectBlocks = aspects.map(function(asp) {
-    const entries = (p.permit_history[asp]||[]).slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
-
-    const rows = entries.length === 0
-      ? '<div style="font-size:12px;color:var(--muted);padding:6px 0 4px;font-style:italic">No entries yet.</div>'
-      : entries.map(function(e, i) {
-          const col = statusCol[e.type] || '#64748b';
-          return '<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid rgba(30,45,71,.5)">'
-            +'<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;padding-top:3px">'
-            +'<div style="width:8px;height:8px;border-radius:50%;background:'+col+'"></div>'
-            +(i<entries.length-1?'<div style="width:2px;flex:1;background:var(--border);margin-top:3px"></div>':'')
-            +'</div>'
-            +'<div style="flex:1">'
-            +'<div style="display:flex;justify-content:space-between;align-items:baseline">'
-            +'<div style="font-size:12px;font-weight:600;color:'+col+'">'+e.type+'</div>'
-            +'<div style="font-size:11px;color:var(--muted)">'+(e.date||'')+'</div>'
-            +'</div>'
-            +(e.desc?'<div style="font-size:12px;color:var(--muted);margin-top:1px">'+e.desc+'</div>':'')
-            +(isAdmin?'<button onclick="deletePermitEntry(\''+asp.replace(/'/g,"\\'")+'\','+i+')" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer;margin-top:2px" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕ Remove</button>':'')
-            +'</div></div>';
-        }).join('');
-
+    const entries = (p.permit_history[asp]||[]).slice();
     const isCustom = !DEFAULT_ASPECTS.includes(asp);
+    const aid = aspId(asp);
+    let rows = '';
+
+    if (!isCustom) {
+      const sorted = entries.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+      rows = sorted.length === 0
+        ? '<div style="font-size:12px;color:var(--muted);padding:6px 0 4px;font-style:italic">No entries yet.</div>'
+        : sorted.map(function(e, i) {
+            const col = statusCol[e.type] || '#64748b';
+            return '<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid rgba(30,45,71,.5)">'
+              +'<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;padding-top:4px">'
+              +'<div style="width:10px;height:10px;border-radius:50%;background:'+col+'"></div>'
+              +(i<sorted.length-1?'<div style="width:2px;flex:1;background:var(--border);margin-top:3px"></div>':'')
+              +'</div>'
+              +'<div style="flex:1">'
+              +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px">'
+              +'<div style="font-size:13px;font-weight:700;color:'+col+'">'+e.type+'</div>'
+              +'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:var(--text)">'+(e.date||'')+'</div>'
+              +'</div>'
+              +(e.case_num?'<div style="font-size:11px;color:var(--accent);margin-bottom:2px">📋 '+e.case_num+'</div>':'')
+              +(e.desc?'<div style="font-size:12px;color:var(--muted)">'+e.desc+'</div>':'')
+              +(isAdmin?'<div style="display:flex;gap:10px;margin-top:4px">'
+                +'<button onclick="showEditPermitForm(\''+asp.replace(/'/g,"\\'")+'\',' +i+')" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'#475569\'">✏️ Edit</button>'
+                +'<button onclick="deletePermitEntry(\''+asp.replace(/'/g,"\\'")+'\','+i+')" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕ Remove</button>'
+                +'</div>':'')
+              +'</div></div>';
+          }).join('');
+    } else {
+      rows = entries.length === 0
+        ? '<div style="font-size:12px;color:var(--muted);padding:6px 0 4px;font-style:italic">No processes yet.</div>'
+        : entries.map(function(e, i) {
+            const hasApproved = !!e.date_approved;
+            const rejDates = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
+            const hasRejected = rejDates.length > 0;
+            const statusColor = hasApproved ? '#22c55e' : hasRejected ? '#ef4444' : e.date_submitted ? '#f5c842' : '#64748b';
+            const statusLabel = hasApproved ? 'Approved' : hasRejected ? 'Rejected' : e.date_submitted ? 'Submitted' : 'Pending';
+            // Calculate duration submitted → approved
+            let durationHtml = '';
+            if (e.date_submitted && e.date_approved) {
+              const parseDate = function(s) {
+                const p = s.split('/');
+                return p.length === 3 ? new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0])) : null;
+              };
+              const d1 = parseDate(e.date_submitted), d2 = parseDate(e.date_approved);
+              if (d1 && d2 && d2 >= d1) {
+                const days = Math.round((d2 - d1) / 86400000);
+                let durLabel = '';
+                const years = Math.floor(days / 365);
+                const months = Math.floor((days % 365) / 30);
+                const remDays = days % 365 % 30;
+                if (years > 0) {
+                  durLabel = years + ' god. ' + months + ' mes. ' + remDays + ' dana';
+                } else if (months > 0) {
+                  durLabel = months + ' mes. ' + remDays + ' dana';
+                } else {
+                  durLabel = remDays + ' dana';
+                }
+                durationHtml = '<div style="display:inline-flex;align-items:center;gap:4px;background:#22c55e18;border:1px solid #22c55e33;border-radius:8px;padding:2px 8px;margin-top:6px">'
+                  +'<span style="font-size:11px;color:var(--muted)">⏱ Trajanje:</span>'
+                  +'<span style="font-size:12px;font-weight:700;color:#22c55e">'+durLabel+'</span>'
+                  +'</div>';
+              }
+            }
+            return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">'
+              +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+              +'<div style="font-size:13px;font-weight:700;color:var(--text)">'+(e.name||'Process')+'</div>'
+              +'<span style="font-size:11px;font-weight:600;color:'+statusColor+';background:'+statusColor+'15;padding:2px 8px;border-radius:10px">'+statusLabel+'</span>'
+              +'</div>'
+              +(e.case_num?'<div style="font-size:11px;color:var(--accent);margin-bottom:6px">📋 '+e.case_num+'</div>':'')
+              +'<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:4px">'
+              +(e.date_submitted?'<div style="font-size:11px"><span style="color:var(--muted)">Podneto: </span><span style="color:#f5c842;font-weight:600">'+e.date_submitted+'</span></div>':'')
+              +rejDates.map(function(d,ri){ return '<div style="font-size:11px"><span style="color:var(--muted)">Odbijeno'+(rejDates.length>1?' '+(ri+1):'')+': </span><span style="color:#ef4444;font-weight:600">'+d+'</span></div>'; }).join('')
+              +(e.date_approved?'<div style="font-size:11px"><span style="color:var(--muted)">Odobreno: </span><span style="color:#22c55e;font-weight:600">'+e.date_approved+'</span></div>':'')
+              +'</div>'
+              +(e.desc?'<div style="font-size:12px;color:var(--muted);margin-top:4px">'+e.desc+'</div>':'')
+              + durationHtml
+              +(isAdmin?'<div style="display:flex;gap:10px;margin-top:8px">'
+                +'<button onclick="showEditProcessForm(\''+asp.replace(/'/g,"\\'")+'\','+i+')" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'#475569\'">✏️ Edit</button>'
+                +'<button onclick="deletePermitEntry(\''+asp.replace(/'/g,"\\'")+'\','+i+')" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕ Remove</button>'
+                +'</div>':'')
+              +'</div>';
+          }).join('');
+    }
+
+    // Inline form (hidden by default, shown when + clicked)
+    const inlineForm = isAdmin ? (
+      isCustom
+        ? '<div id="form_'+aid+'" style="display:none;background:var(--surface2);border-radius:10px;padding:14px;margin-top:10px">'
+          +'<div id="formtitle_'+aid+'" style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px">Add Process</div>'
+          +'<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Naziv procesa</div>'
+          +'<input id="pname_'+aid+'" type="text" placeholder="npr. Lokacijski uslovi..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+          +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
+          +'<div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Datum podnošenja</div><input id="psub_'+aid+'" type="text" placeholder="dd/mm/yyyy" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+          +'<div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Datum odobravanja</div><input id="papp_'+aid+'" type="text" placeholder="dd/mm/yyyy" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+          +'</div>'
+          +'<div id="prej_container_'+aid+'" style="margin-bottom:8px">'
+          +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px"><div style="font-size:11px;color:var(--muted)">Datumi odbijanja</div>'
+          +'<button type="button" onclick="addRejField(\''+aid+'\')" style="background:transparent;border:none;color:var(--accent);font-size:11px;cursor:pointer">+ Dodaj odbijanje</button></div>'
+          +'<div id="prej_list_'+aid+'"><input type="text" placeholder="dd/mm/yyyy" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box;margin-bottom:4px"></div>'
+          +'</div>'
+          +'<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Broj predmeta</div><input id="pcase_'+aid+'" type="text" placeholder="npr. 350-123/2025" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+          +'<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Napomena</div><input id="pdesc_'+aid+'" type="text" placeholder="Opcionalno..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+          +'<div style="display:flex;gap:8px">'
+          +'<button onclick="cancelInlineForm(\''+aid+'\')" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:7px;padding:7px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>'
+          +'<button id="fsave_'+aid+'" onclick="saveInlineProcess(\''+asp.replace(/'/g,"\\'")+'\')" style="flex:1;background:var(--accent);border:none;border-radius:7px;padding:7px;color:#0b0f1a;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">Add Process</button>'
+          +'</div></div>'
+        : '<div id="form_'+aid+'" style="display:none;background:var(--surface2);border-radius:10px;padding:14px;margin-top:10px">'
+          +'<div id="formtitle_'+aid+'" style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px">Add Entry</div>'
+          +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
+          +'<div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Datum (dd/mm/yyyy)</div><input id="pdate_'+aid+'" type="text" placeholder="npr. 15/03/2025" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+          +'<div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Status</div><select id="ptype_'+aid+'" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px"><option>Submitted</option><option>Approved</option><option>Rejected</option></select></div>'
+          +'</div>'
+          +'<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Broj predmeta</div><input id="pcase_'+aid+'" type="text" placeholder="npr. 350-123/2025" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+          +'<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Opis</div><input id="pdesc_'+aid+'" type="text" placeholder="Opis aktivnosti..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+          +'<div style="display:flex;gap:8px">'
+          +'<button onclick="cancelInlineForm(\''+aid+'\')" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:7px;padding:7px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>'
+          +'<button id="fsave_'+aid+'" onclick="saveInlineEntry(\''+asp.replace(/'/g,"\\'")+'\',\''+aid+'\')" style="flex:1;background:var(--accent);border:none;border-radius:7px;padding:7px;color:#0b0f1a;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">Add Entry</button>'
+          +'</div></div>'
+    ) : '';
+
+    const addBtn = isAdmin
+      ? '<button onclick="openInlineForm(\''+aid+'\')" style="margin-top:8px;background:transparent;border:1px solid #1e2d47;border-radius:7px;padding:4px 12px;color:var(--muted);font-size:11px;cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'#1e2d47\';this.style.color=\'var(--muted)\'">'+(isCustom?'+ Add Process':'+ Add Entry')+'</button>'
+      : '';
 
     return '<div style="margin-bottom:20px">'
-      // Aspect header
       +'<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid var(--accent);padding-bottom:6px;margin-bottom:10px">'
       +'<div style="font-size:13px;font-weight:700;color:var(--text)">'+asp+'</div>'
       +'<div style="display:flex;gap:8px;align-items:center">'
-      +(entries.length?'<div style="font-size:11px;color:var(--muted)">'+entries.length+' entr'+(entries.length===1?'y':'ies')+'</div>':'')
-      +(isAdmin && isCustom?'<button onclick="deleteAspect(\''+asp.replace(/'/g,"\\'")+'\',event)" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕</button>':'')
-      +'</div>'
-      +'</div>'
-      // Entries
-      + rows
-      // Add entry button
-      +(isAdmin?'<button onclick="showAddPermitForm(\''+asp.replace(/'/g,"\\'")+'\',this)" style="margin-top:8px;background:transparent;border:1px solid #1e2d47;border-radius:7px;padding:4px 12px;color:var(--muted);font-size:11px;cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'#1e2d47\';this.style.color=\'var(--muted)\'">+ Add Entry</button>':'')
-      +'</div>';
+      +(entries.length?'<div style="font-size:11px;color:var(--muted)">'+entries.length+(isCustom?' process'+(entries.length===1?'':'es'):(entries.length===1?' entry':' entries'))+'</div>':'')
+      +(isAdmin && isCustom?'<button onclick="deleteAspect(\''+asp.replace(/'/g,"\\'")+'\',' +'event)" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕</button>':'')
+      +'</div></div>'
+      + rows + addBtn + inlineForm + '</div>';
   }).join('');
 
   document.getElementById('psm-aspects-list').innerHTML = aspectBlocks;
-
   document.getElementById('psm-permit-btns').innerHTML = isAdmin
     ? '<button onclick="document.getElementById(\'psm-new-aspect-form\').style.display=\'block\'" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:7px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">+ New Aspect</button>'
     : '';
 }
 
-function showAddPermitForm(asp, btn) {
-  _activeAspect = asp;
-  document.getElementById('psm-aspect-add-form').style.display = 'block';
+// Edit structured process (Urbanizam / Energetska Dozvola)
+let _structEditAsp = null, _structEditProc = null;
+
+function showStructuredEdit(asp, proc, event) {
+  event && event.stopPropagation();
+  _structEditAsp = asp; _structEditProc = proc;
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  const d = (p.permit_history[asp] && p.permit_history[asp][proc]) || {};
+
+  // Build inline edit form
+  const formId = 'struct-edit-form';
+  // Remove existing if any
+  const existing = document.getElementById(formId);
+  if (existing) existing.remove();
+
+  const form = document.createElement('div');
+  form.id = formId;
+  form.style.cssText = 'background:var(--surface2);border:1px solid var(--accent);border-radius:12px;padding:16px;margin-bottom:12px;margin-top:8px';
+  form.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:12px">Uredi: '+proc+'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'
+    +'<div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Datum podnošenja</div>'
+    +'<input id="se-submitted" type="text" value="'+(d.date_submitted||'')+'" placeholder="dd/mm/yyyy" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+    +'<div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Datum odluke</div>'
+    +'<input id="se-decision" type="text" value="'+(d.date_decision||'')+'" placeholder="dd/mm/yyyy" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'
+    +'<div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Status</div>'
+    +'<select id="se-status" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px">'
+    +'<option value="">— —</option>'
+    +'<option value="Submitted"'+(d.status==='Submitted'?' selected':'')+'>Submitted</option>'
+    +'<option value="Approved"'+(d.status==='Approved'?' selected':'')+'>Approved</option>'
+    +'<option value="Rejected"'+(d.status==='Rejected'?' selected':'')+'>Rejected</option>'
+    +'</select></div>'
+    +'<div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Br. predmeta</div>'
+    +'<input id="se-case" type="text" value="'+(d.case_num||'')+'" placeholder="350-123/2025-01" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+    +'</div>'
+    +'<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Napomena</div>'
+    +'<input id="se-note" type="text" value="'+(d.note||'')+'" placeholder="Opciona napomena..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="document.getElementById(\'struct-edit-form\').remove()" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>'
+    +'<button onclick="saveStructuredEdit()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">Sačuvaj</button>'
+    +'</div>';
+
+  document.getElementById('psm-aspects-list').prepend(form);
+  form.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+async function saveStructuredEdit() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  if (!p.permit_history[_structEditAsp] || Array.isArray(p.permit_history[_structEditAsp])) {
+    p.permit_history[_structEditAsp] = {};
+  }
+  p.permit_history[_structEditAsp][_structEditProc] = {
+    date_submitted: document.getElementById('se-submitted').value.trim(),
+    date_decision:  document.getElementById('se-decision').value.trim(),
+    status:         document.getElementById('se-status').value,
+    case_num:       document.getElementById('se-case').value.trim(),
+    note:           document.getElementById('se-note').value.trim()
+  };
+  document.getElementById('struct-edit-form')?.remove();
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({permit_history:p.permit_history})
+    });
+  } catch(e) {}
+  renderPermitHistory(p);
+}
+
+
+let _editProcessIdx = null;
+let _editProcessAsp = null;
+
+function openInlineForm(aid) {
+  document.getElementById('form_'+aid).style.display = 'block';
+}
+
+function cancelInlineForm(aid) {
+  document.getElementById('form_'+aid).style.display = 'none';
+}
+
+function addRejField(aid) {
+  const list = document.getElementById('prej_list_'+aid);
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.placeholder = 'dd/mm/yyyy';
+  inp.style.cssText = 'width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box;margin-bottom:4px';
+  list.appendChild(inp);
+}
+
+async function saveInlineProcess(asp) {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  const aid = 'asp_'+asp.replace(/[^a-zA-Z0-9]/g,'_');
+  const name = document.getElementById('pname_'+aid).value.trim();
+  if (!name) return;
+  const rejInputs = Array.from(document.getElementById('prej_list_'+aid).querySelectorAll('input'));
+  const dates_rejected = rejInputs.map(function(i){ return i.value.trim(); }).filter(Boolean);
+  if (!p.permit_history[asp]) p.permit_history[asp] = [];
+  p.permit_history[asp].push({
+    name: name,
+    date_submitted: document.getElementById('psub_'+aid).value.trim(),
+    date_approved:  document.getElementById('papp_'+aid).value.trim(),
+    dates_rejected: dates_rejected,
+    case_num: document.getElementById('pcase_'+aid).value.trim(),
+    desc:     document.getElementById('pdesc_'+aid).value.trim()
+  });
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({permit_history:p.permit_history})
+    });
+  } catch(e) {}
+  renderPermitHistory(p);
+}
+
+async function saveInlineEntry(asp, aid) {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  const date = document.getElementById('pdate_'+aid).value.trim();
+  if (!date) return;
+  if (!p.permit_history[asp]) p.permit_history[asp] = [];
+  p.permit_history[asp].push({
+    date:     date,
+    type:     document.getElementById('ptype_'+aid).value,
+    case_num: document.getElementById('pcase_'+aid).value.trim(),
+    desc:     document.getElementById('pdesc_'+aid).value.trim()
+  });
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({permit_history:p.permit_history})
+    });
+  } catch(e) {}
+  renderPermitHistory(p);
+}
+
+function showEditProcessForm(asp, idx) {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  const e = (p.permit_history[asp]||[])[idx];
+  if (!e) return;
+  _editProcessIdx = idx; _editProcessAsp = asp;
+  const aid = 'asp_'+asp.replace(/[^a-zA-Z0-9]/g,'_');
+  document.getElementById('formtitle_'+aid).textContent = 'Edit Process';
+  document.getElementById('fsave_'+aid).textContent = 'Save Changes';
+  document.getElementById('fsave_'+aid).onclick = function(){ saveEditProcess(asp, idx); };
+  document.getElementById('pname_'+aid).value = e.name || '';
+  document.getElementById('psub_'+aid).value = e.date_submitted || '';
+  document.getElementById('papp_'+aid).value = e.date_approved || '';
+  document.getElementById('pcase_'+aid).value = e.case_num || '';
+  document.getElementById('pdesc_'+aid).value = e.desc || '';
+  // Fill rejection dates
+  const rejList = document.getElementById('prej_list_'+aid);
+  rejList.innerHTML = '';
+  const rejDates = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : ['']);
+  rejDates.forEach(function(d) {
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.placeholder = 'dd/mm/yyyy'; inp.value = d;
+    inp.style.cssText = 'width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box;margin-bottom:4px';
+    rejList.appendChild(inp);
+  });
+  document.getElementById('form_'+aid).style.display = 'block';
+}
+
+async function saveEditProcess(asp, idx) {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  const aid = 'asp_'+asp.replace(/[^a-zA-Z0-9]/g,'_');
+  const rejInputs = Array.from(document.getElementById('prej_list_'+aid).querySelectorAll('input'));
+  const dates_rejected = rejInputs.map(function(i){ return i.value.trim(); }).filter(Boolean);
+  p.permit_history[asp][idx] = {
+    name:           document.getElementById('pname_'+aid).value.trim(),
+    date_submitted: document.getElementById('psub_'+aid).value.trim(),
+    date_approved:  document.getElementById('papp_'+aid).value.trim(),
+    dates_rejected: dates_rejected,
+    case_num:       document.getElementById('pcase_'+aid).value.trim(),
+    desc:           document.getElementById('pdesc_'+aid).value.trim()
+  };
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({permit_history:p.permit_history})
+    });
+  } catch(e) {}
+  renderPermitHistory(p);
+}
+
+
+
+function cancelProcessForm() {
+  document.getElementById('psm-process-add-form').style.display = 'none';
+  _editProcessIdx = null; _editProcessAsp = null;
+  document.getElementById('process-form-title').textContent = 'Add Process';
+  document.getElementById('process-save-btn').textContent = 'Add Process';
+  document.getElementById('process-save-btn').onclick = saveProcessEntry;
+}
+
+function showAddProcessForm(asp) {
+  _editProcessIdx = null; _editProcessAsp = asp;
+  document.getElementById('process-form-title').textContent = 'Add Process';
+  document.getElementById('process-save-btn').textContent = 'Add Process';
+  document.getElementById('process-save-btn').onclick = saveProcessEntry;
+  document.getElementById('process-name').value = '';
+  document.getElementById('process-date-submitted').value = '';
+  document.getElementById('process-date-approved').value = '';
+  document.getElementById('process-date-rejected').value = '';
+  document.getElementById('process-case').value = '';
+  document.getElementById('process-desc').value = '';
+  document.getElementById('psm-process-add-form').dataset.aspect = asp;
+  document.getElementById('psm-process-add-form').style.display = 'block';
+}
+
+function showEditProcessForm(asp, idx) {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  const e = (p.permit_history[asp]||[])[idx];
+  if (!e) return;
+  _editProcessIdx = idx; _editProcessAsp = asp;
+  document.getElementById('process-form-title').textContent = 'Edit Process';
+  document.getElementById('process-save-btn').textContent = 'Save Changes';
+  document.getElementById('process-save-btn').onclick = saveProcessEdit;
+  document.getElementById('process-name').value = e.name || '';
+  document.getElementById('process-date-submitted').value = e.date_submitted || '';
+  document.getElementById('process-date-approved').value = e.date_approved || '';
+  document.getElementById('process-date-rejected').value = e.date_rejected || '';
+  document.getElementById('process-case').value = e.case_num || '';
+  document.getElementById('process-desc').value = e.desc || '';
+  document.getElementById('psm-process-add-form').dataset.aspect = asp;
+  document.getElementById('psm-process-add-form').style.display = 'block';
+}
+
+async function saveProcessEntry() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  const asp = document.getElementById('psm-process-add-form').dataset.aspect || _editProcessAsp;
+  const name = document.getElementById('process-name').value.trim();
+  if (!name) return;
+  if (!p.permit_history[asp]) p.permit_history[asp] = [];
+  p.permit_history[asp].push({
+    name: name,
+    date_submitted: document.getElementById('process-date-submitted').value.trim(),
+    date_approved: document.getElementById('process-date-approved').value.trim(),
+    date_rejected: document.getElementById('process-date-rejected').value.trim(),
+    case_num: document.getElementById('process-case').value.trim(),
+    desc: document.getElementById('process-desc').value.trim()
+  });
+  cancelProcessForm();
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({permit_history:p.permit_history})
+    });
+  } catch(e) {}
+  renderPermitHistory(p);
+}
+
+async function saveProcessEdit() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  const asp = _editProcessAsp;
+  p.permit_history[asp][_editProcessIdx] = {
+    name: document.getElementById('process-name').value.trim(),
+    date_submitted: document.getElementById('process-date-submitted').value.trim(),
+    date_approved: document.getElementById('process-date-approved').value.trim(),
+    date_rejected: document.getElementById('process-date-rejected').value.trim(),
+    case_num: document.getElementById('process-case').value.trim(),
+    desc: document.getElementById('process-desc').value.trim()
+  };
+  cancelProcessForm();
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({permit_history:p.permit_history})
+    });
+  } catch(e) {}
+  renderPermitHistory(p);
+}
+
+
+let _editPermitAsp = null;
+
+function cancelPermitForm() {
+  document.getElementById('psm-aspect-add-form').style.display = 'none';
+  _editPermitIdx = null; _editPermitAsp = null;
+  document.getElementById('permit-form-title').textContent = 'Add Permit Entry';
+  document.getElementById('permit-save-btn').textContent = 'Add Entry';
+  document.getElementById('permit-save-btn').onclick = addPermitEntry;
+}
+
+function showAddPermitForm(asp) {
+  _editPermitIdx = null; _editPermitAsp = asp;
+  document.getElementById('permit-form-title').textContent = 'Add Permit Entry';
+  document.getElementById('permit-save-btn').textContent = 'Add Entry';
+  document.getElementById('permit-save-btn').onclick = addPermitEntry;
   document.getElementById('permit-date').value = '';
+  document.getElementById('permit-case').value = '';
   document.getElementById('permit-desc').value = '';
   document.getElementById('psm-aspect-add-form').dataset.aspect = asp;
+  document.getElementById('psm-aspect-add-form').style.display = 'block';
+}
+
+function showEditPermitForm(asp, idx) {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  const sorted = (p.permit_history[asp]||[]).slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  const e = sorted[idx];
+  _editPermitIdx = idx; _editPermitAsp = asp;
+  document.getElementById('permit-form-title').textContent = 'Edit Permit Entry';
+  document.getElementById('permit-save-btn').textContent = 'Save Changes';
+  document.getElementById('permit-save-btn').onclick = savePermitEdit;
+  document.getElementById('permit-date').value = e.date || '';
+  document.getElementById('permit-type').value = e.type || 'Submitted';
+  document.getElementById('permit-case').value = e.case_num || '';
+  document.getElementById('permit-desc').value = e.desc || '';
+  document.getElementById('psm-aspect-add-form').dataset.aspect = asp;
+  document.getElementById('psm-aspect-add-form').style.display = 'block';
+}
+
+async function savePermitEdit() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  const asp = _editPermitAsp;
+  const sorted = (p.permit_history[asp]||[]).slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  const original = sorted[_editPermitIdx];
+  const realIdx = p.permit_history[asp].indexOf(original);
+  if (realIdx === -1) return;
+  p.permit_history[asp][realIdx] = {
+    date: document.getElementById('permit-date').value.trim(),
+    type: document.getElementById('permit-type').value,
+    case_num: document.getElementById('permit-case').value.trim(),
+    desc: document.getElementById('permit-desc').value.trim()
+  };
+  cancelPermitForm();
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({permit_history:p.permit_history})
+    });
+  } catch(e) {}
+  renderPermitHistory(p);
 }
 
 async function addPermitEntry() {
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
   if (!p) return;
-  const asp = document.getElementById('psm-aspect-add-form').dataset.aspect || _activeAspect;
-  const date = document.getElementById('permit-date').value;
+  const asp = document.getElementById('psm-aspect-add-form').dataset.aspect || _editPermitAsp;
+  const date = document.getElementById('permit-date').value.trim();
   const type = document.getElementById('permit-type').value;
+  const case_num = document.getElementById('permit-case').value.trim();
   const desc = document.getElementById('permit-desc').value.trim();
   if (!date) return;
   if (!p.permit_history[asp]) p.permit_history[asp] = [];
-  p.permit_history[asp].push({ date: date, type: type, desc: desc });
-  document.getElementById('psm-aspect-add-form').style.display = 'none';
+  p.permit_history[asp].push({ date: date, type: type, case_num: case_num, desc: desc });
+  cancelPermitForm();
   try {
     await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
       method:'PATCH',
@@ -3659,11 +4146,11 @@ function initApp() {
       <div id="psm-tab-permits" style="display:none">
         <div id="psm-aspects-list" style="margin-bottom:12px"></div>
         <div id="psm-aspect-add-form" style="display:none;background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:12px">
-          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Add Permit Entry</div>
+          <div id="permit-form-title" style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Add Permit Entry</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
             <div>
-              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Date</div>
-              <input id="permit-date" type="date" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Datum (dd/mm/yyyy)</div>
+              <input id="permit-date" type="text" placeholder="npr. 15/03/2025" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
             </div>
             <div>
               <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Status</div>
@@ -3671,18 +4158,20 @@ function initApp() {
                 <option>Submitted</option>
                 <option>Approved</option>
                 <option>Rejected</option>
-                <option>In Review</option>
-                <option>Other</option>
               </select>
             </div>
           </div>
           <div style="margin-bottom:10px">
-            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Description</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Broj predmeta</div>
+            <input id="permit-case" type="text" placeholder="npr. 350-123/2025-01" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Opis</div>
             <input id="permit-desc" type="text" placeholder="Opis aktivnosti..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
           </div>
           <div style="display:flex;gap:8px">
-            <button onclick="document.getElementById('psm-aspect-add-form').style.display='none'" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>
-            <button onclick="addPermitEntry()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Add Entry</button>
+            <button onclick="cancelPermitForm()" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>
+            <button onclick="addPermitEntry()" id="permit-save-btn" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Add Entry</button>
           </div>
         </div>
         <div id="psm-permit-btns"></div>
@@ -3693,6 +4182,42 @@ function initApp() {
           <div style="display:flex;gap:8px">
             <button onclick="document.getElementById('psm-new-aspect-form').style.display='none'" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>
             <button onclick="addNewAspect()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Add Aspect</button>
+          </div>
+        </div>
+        <!-- Process form for custom aspects -->
+        <div id="psm-process-add-form" style="display:none;background:var(--surface2);border-radius:12px;padding:16px;margin-top:10px">
+          <div id="process-form-title" style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Add Process</div>
+          <div style="margin-bottom:10px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Naziv procesa</div>
+            <input id="process-name" type="text" placeholder="npr. Lokacijski uslovi, Građevinska dozvola..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Datum podnošenja</div>
+              <input id="process-date-submitted" type="text" placeholder="dd/mm/yyyy" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Datum odobravanja</div>
+              <input id="process-date-approved" type="text" placeholder="dd/mm/yyyy" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Datum odbijanja</div>
+              <input id="process-date-rejected" type="text" placeholder="dd/mm/yyyy" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Broj predmeta</div>
+              <input id="process-case" type="text" placeholder="npr. 350-123/2025" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+            </div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Napomena</div>
+            <input id="process-desc" type="text" placeholder="Opcionalna napomena..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onclick="cancelProcessForm()" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>
+            <button onclick="saveProcessEntry()" id="process-save-btn" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Add Process</button>
           </div>
         </div>
       </div>
