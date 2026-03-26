@@ -1227,6 +1227,10 @@
           <button class="map-status-btn" data-status="In operation" onclick="setMapStatus('In operation')" style="padding:5px 12px;border-radius:6px;border:1px solid #22c55e44;background:transparent;color:#22c55e;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s">In Operation</button>
           <button class="map-status-btn" data-status="In construction" onclick="setMapStatus('In construction')" style="padding:5px 12px;border-radius:6px;border:1px solid #0099ff44;background:transparent;color:#0099ff;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s">In Construction</button>
           <button class="map-status-btn" data-status="In development" onclick="setMapStatus('In development')" style="padding:5px 12px;border-radius:6px;border:1px solid #47556944;background:transparent;color:#94a3b8;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s">In Development</button>
+          <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
+          <button id="grid-toggle-btn" onclick="toggleGridLayer()" style="padding:5px 12px;border-radius:6px;border:1px solid #f5c84244;background:transparent;color:#f5c842;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:5px">
+            <span style="font-size:10px">⚡</span> Prenosna mreža
+          </button>
         </div>
       </div>
       <div id="leaflet-map" style="height:560px;width:100%;border-radius:0 0 14px 14px;"></div>
@@ -2046,7 +2050,66 @@ function renderMap() {
 
     renderDistrictLayer();
 
-    // Inject CSS for tooltip
+    // ── PRENOSNA MREŽA (grid.geojson) ──────────────────────
+    let gridLayer = null;
+    let gridVisible = false;
+    let gridData = null;
+
+    const GRID_COLORS = { '400000':'#ef4444', '220000':'#f97316', '110000':'#3b9eff' };
+    const GRID_WEIGHT = { '400000':2.5, '220000':2, '110000':1.5 };
+
+    function renderGridLayer() {
+      if (gridLayer) leafletMap.removeLayer(gridLayer);
+      if (!gridData || !gridVisible) return;
+      gridLayer = L.geoJSON(gridData, {
+        style: function(feature) {
+          const v = feature.properties.voltage || '';
+          return {
+            color: GRID_COLORS[v] || '#64748b',
+            weight: GRID_WEIGHT[v] || 1.5,
+            opacity: 0.75
+          };
+        },
+        onEachFeature: function(feature, layer) {
+          const v = feature.properties.voltage;
+          const kv = v ? Math.round(parseInt(v)/1000)+' kV' : '';
+          const name = feature.properties.name || '';
+          if (kv) layer.bindTooltip((name?name+' · ':'')+kv, { sticky:true, className:'district-tooltip' });
+        }
+      }).addTo(leafletMap);
+    }
+
+    window.toggleGridLayer = function() {
+      const btn = document.getElementById('grid-toggle-btn');
+      if (!gridData) {
+        // Load grid.geojson
+        btn.textContent = '⚡ Učitavam...';
+        btn.style.opacity = '.6';
+        fetch('grid.geojson')
+          .then(function(r){ return r.json(); })
+          .then(function(data) {
+            gridData = data;
+            gridVisible = true;
+            renderGridLayer();
+            btn.innerHTML = '<span style="font-size:10px">⚡</span> Prenosna mreža';
+            btn.style.opacity = '1';
+            btn.style.background = '#f5c84222';
+            btn.style.borderColor = '#f5c842';
+          })
+          .catch(function() {
+            btn.innerHTML = '<span style="font-size:10px">⚡</span> Prenosna mreža';
+            btn.style.opacity = '1';
+            alert('Nije pronađen fajl grid.geojson. Postavi ga u isti folder kao index.html na GitHubu.');
+          });
+      } else {
+        gridVisible = !gridVisible;
+        renderGridLayer();
+        btn.style.background = gridVisible ? '#f5c84222' : 'transparent';
+        btn.style.borderColor = '#f5c84244';
+        btn.style.color = '#f5c842';
+      }
+    };
+    // ───────────────────────────────────────────────────────
     const style = document.createElement('style');
     style.textContent = `
       .district-tooltip { background:#1a2235; border:1px solid #1e2d47; border-radius:8px; color:#e2e8f0; padding:6px 10px; font-family:'DM Sans',sans-serif; box-shadow:0 4px 12px rgba(0,0,0,.5); }
