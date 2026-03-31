@@ -2863,8 +2863,6 @@ async function sendAI() {
   const q = input.value.trim();
   if (!q) return;
 
-  const apiKey = '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';
-
   msgs.innerHTML += '<div class="ai-msg-user">'+q+'</div>';
   input.value = ''; input.style.height = 'auto';
 
@@ -2877,10 +2875,10 @@ async function sendAI() {
   btn.disabled = true; btn.style.opacity = '.5';
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(SB_URL + '/functions/v1/ai-proxy', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-      body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1500, system:getAISystem(), messages:aiHistory })
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + SB_KEY },
+      body:JSON.stringify({ model:'claude-sonnet-4-5', max_tokens:1500, system:getAISystem(), messages:aiHistory })
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error.message);
@@ -2930,8 +2928,6 @@ async function sendFloatAI() {
   const q = input.value.trim();
   if (!q) return;
 
-  const apiKey = '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';
-
   msgs.innerHTML += '<div style="align-self:flex-end;background:var(--accent);color:#0b0f1a;padding:7px 12px;border-radius:12px 12px 2px 12px;font-size:13px;max-width:85%">'+q+'</div>';
   input.value = ''; input.style.height = 'auto';
 
@@ -2944,10 +2940,10 @@ async function sendFloatAI() {
   btn.disabled = true; btn.style.opacity = '.5';
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(SB_URL + '/functions/v1/ai-proxy', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-      body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:800, system:getAISystem(), messages:floatAiHistory })
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + SB_KEY },
+      body:JSON.stringify({ model:'claude-sonnet-4-5', max_tokens:800, system:getAISystem(), messages:floatAiHistory })
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error.message);
