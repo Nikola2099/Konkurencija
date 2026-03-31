@@ -3315,8 +3315,9 @@ function showOfftakeForm() {
 }
 
 function cancelOfftakeInfo() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
   document.getElementById('psm-offtake-info-edit').style.display = 'none';
-  document.getElementById('psm-offtake-info-btns').style.display = 'block';
+  if (p) renderOfftakeInfo(p);
 }
 
 async function saveOfftakeInfo() {
