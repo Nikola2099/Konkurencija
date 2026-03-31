@@ -3364,8 +3364,10 @@ function renderPermitHistory(p) {
     if (oldEntries.length) p.permit_history['Urbanizam'] = oldEntries;
   }
   DEFAULT_ASPECTS.forEach(function(a){ if (!p.permit_history[a]) p.permit_history[a] = []; });
+  if (!p.permit_history._completed) p.permit_history._completed = {};
+  const completed = p.permit_history._completed;
 
-  const aspects = Object.keys(p.permit_history);
+  const aspects = Object.keys(p.permit_history).filter(function(k){ return k !== '_completed'; });
   const statusCol = { Submitted:'#f5c842', Approved:'#22c55e', Rejected:'#ef4444' };
 
   const aspId = function(asp) { return 'asp_'+asp.replace(/[^a-zA-Z0-9]/g,'_'); };
@@ -3497,20 +3499,56 @@ function renderPermitHistory(p) {
       ? '<button onclick="openInlineForm(\''+aid+'\')" style="margin-top:8px;background:transparent;border:1px solid #1e2d47;border-radius:7px;padding:4px 12px;color:var(--muted);font-size:11px;cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'#1e2d47\';this.style.color=\'var(--muted)\'">'+(isCustom?'+ Add Process':'+ Add Entry')+'</button>'
       : '';
 
-    return '<div style="margin-bottom:20px">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid var(--accent);padding-bottom:6px;margin-bottom:10px">'
-      +'<div style="font-size:13px;font-weight:700;color:var(--text)">'+asp+'</div>'
-      +'<div style="display:flex;gap:8px;align-items:center">'
-      +(entries.length?'<div style="font-size:11px;color:var(--muted)">'+entries.length+(isCustom?' process'+(entries.length===1?'':'es'):(entries.length===1?' entry':' entries'))+'</div>':'')
-      +(isAdmin && isCustom?'<button onclick="deleteAspect(\''+asp.replace(/'/g,"\\'")+'\',' +'event)" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕</button>':'')
-      +'</div></div>'
-      + rows + addBtn + inlineForm + '</div>';
+    const isDone = !!completed[asp];
+    const doneColor = isDone ? '#22c55e' : '#475569';
+    const doneBg = isDone ? '#22c55e' : 'transparent';
+    const aspSafe = asp.replace(/'/g,"\\'");
+    return '<div style="margin-bottom:10px;background:var(--surface);border:1px solid '+(isDone?'#22c55e33':'var(--border)')+';border-radius:12px;overflow:hidden">'
+      +'<div onclick="toggleAspect(\''+aid+'\')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;user-select:none" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'
+        +'<div style="display:flex;align-items:center;gap:10px">'
+          +'<span id="chev_'+aid+'" style="color:var(--muted);font-size:10px">▶</span>'
+          +'<button onclick="event.stopPropagation();toggleAspectDone(\''+aspSafe+'\')" '
+            +'style="width:20px;height:20px;border-radius:50%;border:2px solid '+doneColor+';background:'+doneBg+';color:#fff;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;line-height:1" '
+            +'title="Označi kao završeno">'+(isDone?'✓':'')+'</button>'
+          +'<div style="font-size:13px;font-weight:700;color:'+(isDone?'#22c55e':'var(--text)')+'">'+asp+'</div>'
+        +'</div>'
+        +'<div style="display:flex;gap:8px;align-items:center">'
+          +(entries.length?'<div style="font-size:11px;color:var(--muted)">'+entries.length+(isCustom?' process'+(entries.length===1?'':'es'):(entries.length===1?' entry':' entries'))+'</div>':'')
+          +(isAdmin && isCustom?'<button onclick="event.stopPropagation();deleteAspect(\''+aspSafe+'\',event)" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕</button>':'')
+        +'</div>'
+      +'</div>'
+      +'<div id="content_'+aid+'" style="display:none;padding:12px 14px;border-top:1px solid var(--border)">'
+        + rows + addBtn + inlineForm
+      +'</div>'
+    +'</div>';
   }).join('');
 
   document.getElementById('psm-aspects-list').innerHTML = aspectBlocks;
   document.getElementById('psm-permit-btns').innerHTML = isAdmin
     ? '<button onclick="document.getElementById(\'psm-new-aspect-form\').style.display=\'block\'" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:7px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">+ New Aspect</button>'
     : '';
+}
+
+function toggleAspect(aid) {
+  const content = document.getElementById('content_'+aid);
+  const chev = document.getElementById('chev_'+aid);
+  if (!content) return;
+  const open = content.style.display !== 'none';
+  content.style.display = open ? 'none' : 'block';
+  if (chev) chev.style.transform = open ? '' : 'rotate(90deg)';
+}
+
+function toggleAspectDone(asp) {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  if (!p.permit_history._completed) p.permit_history._completed = {};
+  p.permit_history._completed[asp] = !p.permit_history._completed[asp];
+  fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
+    method: 'PATCH',
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ permit_history: p.permit_history })
+  });
+  renderPermitHistory(p);
 }
 
 // Edit structured process (Urbanizam / Energetska Dozvola)
