@@ -1131,7 +1131,7 @@
             <th onclick="sortBy('status_overall')">Status <span class="sort-icon">↕</span></th>
             <th onclick="sortBy('probability')">Prob. <span class="sort-icon">↕</span></th>
             <th>Permitting</th>
-            <th>CFD</th>
+            <th>Offtake</th>
           </tr>
         </thead>
         <tbody id="table-body"></tbody>
@@ -3031,6 +3031,7 @@ function openProjSummary(id) {
 
   renderSiteGrid(p);
   renderWtgInfo(p);
+  renderOfftakeInfo(p);
   renderNewsLinks(p, 'wtg');
   renderNewsLinks(p, 'offtake');
   renderPermitHistory(p);
@@ -3232,7 +3233,7 @@ function renderWtgInfo(p) {
       +'<div style="font-size:13px;font-weight:500;color:var(--text)">'+(val||'<span style="color:var(--muted);font-size:11px">Not set</span>')+'</div>'
       +'</div>';
   }
-  viewEl.innerHTML = row('Manufacturer', p.wtg_manufacturer) + row('Turbine Type / Model', p.wtg_type) + row('Hub Height', p.wtg_hub_height);
+  viewEl.innerHTML = row('Manufacturer', p.wtg_manufacturer) + row('Turbine Type / Model', p.wtg_type) + row('Hub Height', p.wtg_hub_height) + row('Number of Turbines', p.wtg_count ? String(p.wtg_count) : null);
   btnsEl.innerHTML = isAdmin
     ? '<button onclick="editWtgInfo()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">✏️ Edit</button>'
     : '';
@@ -3244,6 +3245,7 @@ function editWtgInfo() {
   document.getElementById('wtg-manufacturer').value = p.wtg_manufacturer || '';
   document.getElementById('wtg-type').value = p.wtg_type || '';
   document.getElementById('wtg-hub-height').value = p.wtg_hub_height || '';
+  document.getElementById('wtg-count').value = p.wtg_count || '';
   document.getElementById('psm-wtg-info-view').style.display = 'none';
   document.getElementById('psm-wtg-info-edit').style.display = 'flex';
   document.getElementById('psm-wtg-info-btns').style.display = 'none';
@@ -3261,15 +3263,74 @@ async function saveWtgInfo() {
   p.wtg_manufacturer = document.getElementById('wtg-manufacturer').value;
   p.wtg_type = document.getElementById('wtg-type').value.trim();
   p.wtg_hub_height = document.getElementById('wtg-hub-height').value.trim();
+  p.wtg_count = document.getElementById('wtg-count').value ? parseInt(document.getElementById('wtg-count').value) : null;
   try {
     await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
       method:'PATCH',
       headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body: JSON.stringify({ wtg_manufacturer: p.wtg_manufacturer, wtg_type: p.wtg_type, wtg_hub_height: p.wtg_hub_height })
+      body: JSON.stringify({ wtg_manufacturer: p.wtg_manufacturer, wtg_type: p.wtg_type, wtg_hub_height: p.wtg_hub_height, wtg_count: p.wtg_count })
     });
   } catch(e) {}
   document.getElementById('psm-wtg-info-btns').style.display = 'block';
   renderWtgInfo(p);
+}
+
+function renderOfftakeInfo(p) {
+  const isAdmin = EDIT_USERS.has(currentUser);
+  const viewEl = document.getElementById('psm-offtake-info-view');
+  const editEl = document.getElementById('psm-offtake-info-edit');
+  const btnsEl = document.getElementById('psm-offtake-info-btns');
+  editEl.style.display = 'none';
+  viewEl.style.display = 'flex';
+  function row(label, val) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="font-size:12px;color:var(--muted)">'+label+'</div>'
+      +'<div style="font-size:13px;font-weight:500;color:var(--text)">'+(val||'<span style="color:var(--muted);font-size:11px">Not set</span>')+'</div>'
+      +'</div>';
+  }
+  viewEl.innerHTML = row('Offtake Type', p.offtake_type)
+    + row('Capacity Awarded', p.offtake_capacity_mw ? p.offtake_capacity_mw+' MW' : null)
+    + row('Price', p.offtake_price)
+    + row('Remaining Capacity', p.offtake_remaining_mw ? p.offtake_remaining_mw+' MW' : null);
+  btnsEl.innerHTML = isAdmin
+    ? '<button onclick="editOfftakeInfo()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">✏️ Edit</button>'
+    : '';
+}
+
+function editOfftakeInfo() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  document.getElementById('offtake-type').value = p.offtake_type || '';
+  document.getElementById('offtake-capacity-mw').value = p.offtake_capacity_mw || '';
+  document.getElementById('offtake-price').value = p.offtake_price || '';
+  document.getElementById('offtake-remaining-mw').value = p.offtake_remaining_mw || '';
+  document.getElementById('psm-offtake-info-view').style.display = 'none';
+  document.getElementById('psm-offtake-info-edit').style.display = 'flex';
+  document.getElementById('psm-offtake-info-btns').style.display = 'none';
+}
+
+function cancelOfftakeInfo() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  document.getElementById('psm-offtake-info-btns').style.display = 'block';
+  if (p) renderOfftakeInfo(p);
+}
+
+async function saveOfftakeInfo() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  p.offtake_type = document.getElementById('offtake-type').value;
+  p.offtake_capacity_mw = document.getElementById('offtake-capacity-mw').value ? parseFloat(document.getElementById('offtake-capacity-mw').value) : null;
+  p.offtake_price = document.getElementById('offtake-price').value.trim();
+  p.offtake_remaining_mw = document.getElementById('offtake-remaining-mw').value ? parseFloat(document.getElementById('offtake-remaining-mw').value) : null;
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ offtake_type: p.offtake_type, offtake_capacity_mw: p.offtake_capacity_mw, offtake_price: p.offtake_price, offtake_remaining_mw: p.offtake_remaining_mw })
+    });
+  } catch(e) {}
+  document.getElementById('psm-offtake-info-btns').style.display = 'block';
+  renderOfftakeInfo(p);
 }
 
 function renderNewsLinks(p, type) {
@@ -4284,11 +4345,16 @@ async function loadProjectsFromDB() {
         permit_history:    row.permit_history    || [],
         risk_factors:      row.risk_factors      || [],
         energy_license:    row.energy_license    || '',
-        wtg_links:         row.wtg_links         || [],
-        offtake_links:     row.offtake_links     || [],
-        wtg_manufacturer:  row.wtg_manufacturer  || '',
-        wtg_type:          row.wtg_type          || '',
-        wtg_hub_height:    row.wtg_hub_height    || ''
+        wtg_links:           row.wtg_links           || [],
+        offtake_links:       row.offtake_links       || [],
+        wtg_manufacturer:    row.wtg_manufacturer    || '',
+        wtg_type:            row.wtg_type            || '',
+        wtg_hub_height:      row.wtg_hub_height      || '',
+        wtg_count:           row.wtg_count           || null,
+        offtake_type:        row.offtake_type        || '',
+        offtake_capacity_mw: row.offtake_capacity_mw || null,
+        offtake_price:       row.offtake_price       || '',
+        offtake_remaining_mw:row.offtake_remaining_mw|| null
       };
     });
     console.log('Loaded ' + PROJECTS.length + ' projects from Supabase');
@@ -4644,6 +4710,10 @@ function initApp() {
             </select>
           </div>
           <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Number of Turbines</div>
+            <input id="wtg-count" type="number" min="1" placeholder="e.g. 25" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+          </div>
+          <div>
             <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Turbine Type / Model</div>
             <input id="wtg-type" type="text" placeholder="e.g. V150-4.5 MW" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
           </div>
@@ -4684,7 +4754,42 @@ function initApp() {
 
       <!-- OFFTAKE TAB -->
       <div id="psm-tab-offtake" style="display:none">
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">📄 Offtake — News & Links</div>
+        <!-- Offtake Info -->
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">💰 Offtake Details</div>
+        <div id="psm-offtake-info-view" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
+        <div id="psm-offtake-info-edit" style="display:none;flex-direction:column;gap:12px;margin-bottom:12px">
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Offtake Type</div>
+            <select id="offtake-type" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none">
+              <option value="">— Not selected —</option>
+              <option value="CFD 1">CFD 1</option>
+              <option value="CFD 2">CFD 2</option>
+              <option value="FiT">FiT</option>
+              <option value="PPA">PPA</option>
+              <option value="EPS">EPS</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Capacity Awarded (MW)</div>
+            <input id="offtake-capacity-mw" type="number" step="0.1" min="0" placeholder="e.g. 100" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Price</div>
+            <input id="offtake-price" type="text" placeholder="e.g. 62 €/MWh" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Remaining Capacity (MW)</div>
+            <input id="offtake-remaining-mw" type="number" step="0.1" min="0" placeholder="e.g. 50" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onclick="cancelOfftakeInfo()" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>
+            <button onclick="saveOfftakeInfo()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Save</button>
+          </div>
+        </div>
+        <div id="psm-offtake-info-btns" style="margin-bottom:20px"></div>
+        <!-- News Links -->
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">📰 News & Links</div>
         <div id="psm-offtake-links" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
         <div id="psm-offtake-add-form" style="display:none;background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:12px">
           <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Add News Link</div>
