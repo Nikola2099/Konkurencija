@@ -3030,6 +3030,7 @@ function openProjSummary(id) {
     : '';
 
   renderSiteGrid(p);
+  renderWtgInfo(p);
   renderNewsLinks(p, 'wtg');
   renderNewsLinks(p, 'offtake');
   renderPermitHistory(p);
@@ -3216,6 +3217,59 @@ async function saveSiteGrid() {
     });
   } catch(e) {}
   cancelSiteGrid();
+}
+
+function renderWtgInfo(p) {
+  const isAdmin = EDIT_USERS.has(currentUser);
+  const viewEl = document.getElementById('psm-wtg-info-view');
+  const editEl = document.getElementById('psm-wtg-info-edit');
+  const btnsEl = document.getElementById('psm-wtg-info-btns');
+  editEl.style.display = 'none';
+  viewEl.style.display = 'flex';
+  function row(label, val) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="font-size:12px;color:var(--muted)">'+label+'</div>'
+      +'<div style="font-size:13px;font-weight:500;color:var(--text)">'+(val||'<span style="color:var(--muted);font-size:11px">Not set</span>')+'</div>'
+      +'</div>';
+  }
+  viewEl.innerHTML = row('Manufacturer', p.wtg_manufacturer) + row('Turbine Type / Model', p.wtg_type) + row('Hub Height', p.wtg_hub_height);
+  btnsEl.innerHTML = isAdmin
+    ? '<button onclick="editWtgInfo()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">✏️ Edit</button>'
+    : '';
+}
+
+function editWtgInfo() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  document.getElementById('wtg-manufacturer').value = p.wtg_manufacturer || '';
+  document.getElementById('wtg-type').value = p.wtg_type || '';
+  document.getElementById('wtg-hub-height').value = p.wtg_hub_height || '';
+  document.getElementById('psm-wtg-info-view').style.display = 'none';
+  document.getElementById('psm-wtg-info-edit').style.display = 'flex';
+  document.getElementById('psm-wtg-info-btns').style.display = 'none';
+}
+
+function cancelWtgInfo() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  document.getElementById('psm-wtg-info-btns').style.display = 'block';
+  if (p) renderWtgInfo(p);
+}
+
+async function saveWtgInfo() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  p.wtg_manufacturer = document.getElementById('wtg-manufacturer').value;
+  p.wtg_type = document.getElementById('wtg-type').value.trim();
+  p.wtg_hub_height = document.getElementById('wtg-hub-height').value.trim();
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ wtg_manufacturer: p.wtg_manufacturer, wtg_type: p.wtg_type, wtg_hub_height: p.wtg_hub_height })
+    });
+  } catch(e) {}
+  document.getElementById('psm-wtg-info-btns').style.display = 'block';
+  renderWtgInfo(p);
 }
 
 function renderNewsLinks(p, type) {
@@ -4231,7 +4285,10 @@ async function loadProjectsFromDB() {
         risk_factors:      row.risk_factors      || [],
         energy_license:    row.energy_license    || '',
         wtg_links:         row.wtg_links         || [],
-        offtake_links:     row.offtake_links     || []
+        offtake_links:     row.offtake_links     || [],
+        wtg_manufacturer:  row.wtg_manufacturer  || '',
+        wtg_type:          row.wtg_type          || '',
+        wtg_hub_height:    row.wtg_hub_height    || ''
       };
     });
     console.log('Loaded ' + PROJECTS.length + ' projects from Supabase');
@@ -4558,7 +4615,50 @@ function initApp() {
 
       <!-- WTGs TAB -->
       <div id="psm-tab-wtg" style="display:none">
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">🔩 WTGs — News & Links</div>
+        <!-- Turbine Info -->
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">🔩 Turbine Specifications</div>
+        <div id="psm-wtg-info-view" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
+        <div id="psm-wtg-info-edit" style="display:none;flex-direction:column;gap:12px;margin-bottom:12px">
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Manufacturer</div>
+            <select id="wtg-manufacturer" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none">
+              <option value="">— Not selected —</option>
+              <optgroup label="European">
+                <option value="Vestas">Vestas</option>
+                <option value="Siemens Gamesa">Siemens Gamesa</option>
+                <option value="Nordex">Nordex</option>
+                <option value="Enercon">Enercon</option>
+              </optgroup>
+              <optgroup label="American">
+                <option value="GE Vernova">GE Vernova</option>
+              </optgroup>
+              <optgroup label="Chinese">
+                <option value="Goldwind">Goldwind</option>
+                <option value="Ming Yang">Ming Yang</option>
+                <option value="CSSC Haizhuang">CSSC Haizhuang</option>
+                <option value="Windey">Windey</option>
+                <option value="Envision">Envision</option>
+                <option value="DEC (Dongfang Electric)">DEC (Dongfang Electric)</option>
+                <option value="SANY">SANY</option>
+              </optgroup>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Turbine Type / Model</div>
+            <input id="wtg-type" type="text" placeholder="e.g. V150-4.5 MW" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Hub Height (m)</div>
+            <input id="wtg-hub-height" type="text" placeholder="e.g. 120 m" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onclick="cancelWtgInfo()" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>
+            <button onclick="saveWtgInfo()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Save</button>
+          </div>
+        </div>
+        <div id="psm-wtg-info-btns" style="margin-bottom:20px"></div>
+        <!-- News Links -->
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">📰 News & Links</div>
         <div id="psm-wtg-links" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
         <div id="psm-wtg-add-form" style="display:none;background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:12px">
           <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Add News Link</div>
