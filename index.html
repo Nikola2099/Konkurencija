@@ -2877,7 +2877,7 @@ async function sendAI() {
   try {
     const res = await fetch(SB_URL + '/functions/v1/ai-proxy', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + SB_KEY },
+      headers:{ 'Content-Type':'application/json'},
       body:JSON.stringify({ model:'claude-sonnet-4-5', max_tokens:1500, system:getAISystem(), messages:aiHistory })
     });
     const data = await res.json();
@@ -2942,7 +2942,7 @@ async function sendFloatAI() {
   try {
     const res = await fetch(SB_URL + '/functions/v1/ai-proxy', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + SB_KEY },
+      headers:{ 'Content-Type':'application/json'},
       body:JSON.stringify({ model:'claude-sonnet-4-5', max_tokens:800, system:getAISystem(), messages:floatAiHistory })
     });
     const data = await res.json();
