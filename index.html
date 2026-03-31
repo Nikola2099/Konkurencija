@@ -3299,6 +3299,7 @@ function renderOfftakeInfo(p) {
         +'</div></div>';
     }).join('');
   }
+  btnsEl.style.display = 'block';
   btnsEl.innerHTML = isAdmin
     ? '<button onclick="showOfftakeForm()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">+ Add Offtake</button>'
     : '';
