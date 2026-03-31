@@ -1500,7 +1500,15 @@
         <div id="edit-save-msg" style="display:none;color:#22c55e;font-size:12px;text-align:center">✓ Changes saved</div>
         <div style="display:flex;gap:10px;margin-top:4px">
           <button onclick="closeEditModal()" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--muted);font-family:'DM Sans',sans-serif;cursor:pointer">Cancel</button>
+          <button onclick="confirmDeleteProject()" style="padding:10px 14px;background:transparent;border:1px solid var(--danger);border-radius:10px;color:var(--danger);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer" title="Delete project">🗑</button>
           <button onclick="saveEdit()" style="flex:1;background:var(--accent);border:none;border-radius:10px;padding:10px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer">Save Changes</button>
+        </div>
+        <div id="edit-delete-confirm" style="display:none;margin-top:10px;padding:12px;background:rgba(239,68,68,.08);border:1px solid var(--danger);border-radius:10px;text-align:center">
+          <div style="font-size:13px;color:var(--danger);margin-bottom:8px">Delete <strong id="edit-delete-name"></strong>? This cannot be undone.</div>
+          <div style="display:flex;gap:8px;justify-content:center">
+            <button onclick="document.getElementById('edit-delete-confirm').style.display='none'" style="padding:7px 16px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer">Cancel</button>
+            <button onclick="deleteProject()" style="padding:7px 16px;background:var(--danger);border:none;border-radius:8px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Yes, Delete</button>
+          </div>
         </div>
       </div>
     </div>
@@ -3902,7 +3910,35 @@ function saveEdit() {
 
 function closeEditModal() {
   document.getElementById('edit-modal').style.display = 'none';
+  document.getElementById('edit-delete-confirm').style.display = 'none';
   document.body.style.overflow = '';
+}
+
+function confirmDeleteProject() {
+  const p = PROJECTS.find(function(x){ return x.id === _editProjectId; });
+  if (!p) return;
+  document.getElementById('edit-delete-name').textContent = p.name;
+  document.getElementById('edit-delete-confirm').style.display = 'block';
+}
+
+async function deleteProject() {
+  const p = PROJECTS.find(function(x){ return x.id === _editProjectId; });
+  if (!p) return;
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
+      method: 'DELETE',
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    });
+    if (res.ok) {
+      PROJECTS = PROJECTS.filter(function(x){ return x.id !== p.id; });
+      closeEditModal();
+      initApp();
+    } else {
+      alert('Delete failed. Please try again.');
+    }
+  } catch(e) {
+    alert('Delete failed: ' + e.message);
+  }
 }
 
 function openAddModal() {
