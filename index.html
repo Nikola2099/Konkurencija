@@ -1108,8 +1108,9 @@
           <option value="">All</option>
           <option value="Building Permit">Building Permit</option>
           <option value="Urbanistic Plan Adopted">Urbanistic Plan Adopted</option>
-          <option value="Urbanistic Plan in preparation">Urbanistic Plan in prep.</option>
           <option value="Location Conditions">Location Conditions</option>
+          <option value="Energy permit">Energy permit</option>
+          <option value="Urbanistic Plan in preparation">Urbanistic Plan in prep.</option>
           <option value="Nothing (inactive)">Inactive</option>
         </select>
       </div>
@@ -1319,8 +1320,9 @@
         <option value="">All Permit Stages</option>
         <option value="Building Permit">Building Permit</option>
         <option value="Urbanistic Plan Adopted">Urbanistic Plan Adopted</option>
-        <option value="Urbanistic Plan in preparation">Urbanistic Plan in preparation</option>
         <option value="Location Conditions">Location Conditions</option>
+        <option value="Energy permit">Energy permit</option>
+        <option value="Urbanistic Plan in preparation">Urbanistic Plan in preparation</option>
         <option value="Nothing (inactive)">Nothing / Inactive</option>
       </select>
       <div id="pm-count" style="margin-left:auto;font-size:12px;color:var(--muted);align-self:center"></div>
@@ -1402,7 +1404,7 @@
       </div>
       <div>
         <label style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:5px">Permitting Status</label>
-        <input id="add-permitting" type="text" placeholder="e.g. Building Permit" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;box-sizing:border-box" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+        <select id="add-permitting" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;box-sizing:border-box"><option value="">-- Select --</option><option value="Urbanistic Plan in preparation">Urbanistic Plan in preparation</option><option value="Urbanistic Plan Adopted">Urbanistic Plan Adopted</option><option value="Location Conditions">Location Conditions</option><option value="Energy permit">Energy permit</option><option value="Building Permit">Building Permit</option><option value="Nothing (inactive)">Nothing (inactive)</option></select>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div>
@@ -1474,9 +1476,10 @@
         <div>
           <label style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:block;margin-bottom:6px">Permit Status</label>
           <select id="edit-permitting" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px">
-            <option value="Location Conditions">Location Conditions</option>
             <option value="Urbanistic Plan in preparation">Urbanistic Plan in preparation</option>
             <option value="Urbanistic Plan Adopted">Urbanistic Plan Adopted</option>
+            <option value="Location Conditions">Location Conditions</option>
+            <option value="Energy permit">Energy permit</option>
             <option value="Building Permit">Building Permit</option>
             <option value="Nothing (inactive)">Nothing (inactive)</option>
           </select>
@@ -3939,10 +3942,10 @@ async function deleteProject() {
 
 function openAddModal() {
   if (!EDIT_USERS.has(currentUser)) return;
-  ['add-name','add-investor','add-location','add-capacity','add-permitting','add-cfd','add-energy-license','add-comment'].forEach(function(id){
+  ['add-name','add-investor','add-location','add-capacity','add-cfd','add-energy-license','add-comment'].forEach(function(id){
     document.getElementById(id).value = '';
   });
-  ['add-technology','add-law','add-status','add-prob'].forEach(function(id){
+  ['add-technology','add-law','add-status','add-prob','add-permitting'].forEach(function(id){
     document.getElementById(id).value = '';
   });
   document.getElementById('add-error').style.display = 'none';
