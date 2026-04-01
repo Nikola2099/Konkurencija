@@ -1236,6 +1236,11 @@
           <button id="grid-toggle-btn" onclick="toggleGridLayer()" style="padding:5px 12px;border-radius:6px;border:1px solid #f5c84244;background:transparent;color:#f5c842;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:5px">
             <span style="font-size:10px">⚡</span> Prenosna mreža
           </button>
+          <div id="grid-voltage-btns" style="display:none;gap:4px;align-items:center">
+            <button id="grid-btn-400000" onclick="toggleVoltage('400000')" style="padding:5px 10px;border-radius:6px;border:1px solid #ef444444;background:#ef444422;color:#ef4444;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:all .2s">400 kV</button>
+            <button id="grid-btn-220000" onclick="toggleVoltage('220000')" style="padding:5px 10px;border-radius:6px;border:1px solid #22c55e44;background:#22c55e22;color:#22c55e;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:all .2s">220 kV</button>
+            <button id="grid-btn-110000" onclick="toggleVoltage('110000')" style="padding:5px 10px;border-radius:6px;border:1px solid #94a3b844;background:#94a3b822;color:#94a3b8;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:all .2s">110 kV</button>
+          </div>
         </div>
       </div>
       <div id="leaflet-map" style="height:560px;width:100%;border-radius:0 0 14px 14px;"></div>
@@ -2083,19 +2088,26 @@ function renderMap() {
     let gridVisible = false;
     let gridData = null;
 
-    const GRID_COLORS = { '400000':'#ef4444', '220000':'#f97316', '110000':'#3b9eff' };
+    const GRID_COLORS = { '400000':'#ef4444', '220000':'#22c55e', '110000':'#94a3b8' };
     const GRID_WEIGHT = { '400000':2.5, '220000':2, '110000':1.5 };
+    const gridActive = { '400000': true, '220000': true, '110000': true };
 
     function renderGridLayer() {
       if (gridLayer) leafletMap.removeLayer(gridLayer);
-      if (!gridData || !gridVisible) return;
+      if (!gridData) return;
+      const anyActive = Object.values(gridActive).some(Boolean);
+      if (!anyActive) return;
       gridLayer = L.geoJSON(gridData, {
+        filter: function(feature) {
+          const v = feature.properties.voltage || '';
+          return !!gridActive[v];
+        },
         style: function(feature) {
           const v = feature.properties.voltage || '';
           return {
             color: GRID_COLORS[v] || '#64748b',
             weight: GRID_WEIGHT[v] || 1.5,
-            opacity: 0.75
+            opacity: 0.8
           };
         },
         onEachFeature: function(feature, layer) {
@@ -2107,22 +2119,31 @@ function renderMap() {
       }).addTo(leafletMap);
     }
 
+    window.toggleVoltage = function(v) {
+      gridActive[v] = !gridActive[v];
+      const btn = document.getElementById('grid-btn-'+v);
+      if (btn) {
+        btn.style.opacity = gridActive[v] ? '1' : '0.35';
+        btn.style.background = gridActive[v] ? GRID_COLORS[v]+'22' : 'transparent';
+      }
+      renderGridLayer();
+    };
+
     window.toggleGridLayer = function() {
       const btn = document.getElementById('grid-toggle-btn');
       if (!gridData) {
-        // Load grid.geojson
         btn.textContent = '⚡ Učitavam...';
         btn.style.opacity = '.6';
         fetch('grid.geojson')
           .then(function(r){ return r.json(); })
           .then(function(data) {
             gridData = data;
-            gridVisible = true;
             renderGridLayer();
             btn.innerHTML = '<span style="font-size:10px">⚡</span> Prenosna mreža';
             btn.style.opacity = '1';
             btn.style.background = '#f5c84222';
             btn.style.borderColor = '#f5c842';
+            document.getElementById('grid-voltage-btns').style.display = 'flex';
           })
           .catch(function() {
             btn.innerHTML = '<span style="font-size:10px">⚡</span> Prenosna mreža';
@@ -2130,11 +2151,17 @@ function renderMap() {
             alert('Nije pronađen fajl grid.geojson. Postavi ga u isti folder kao index.html na GitHubu.');
           });
       } else {
-        gridVisible = !gridVisible;
+        const showing = Object.values(gridActive).some(Boolean);
+        ['400000','220000','110000'].forEach(function(v){ gridActive[v] = !showing; });
+        ['400000','220000','110000'].forEach(function(v){
+          const b = document.getElementById('grid-btn-'+v);
+          if (b) {
+            b.style.opacity = gridActive[v] ? '1' : '0.35';
+            b.style.background = gridActive[v] ? GRID_COLORS[v]+'22' : 'transparent';
+          }
+        });
         renderGridLayer();
-        btn.style.background = gridVisible ? '#f5c84222' : 'transparent';
-        btn.style.borderColor = '#f5c84244';
-        btn.style.color = '#f5c842';
+        btn.style.background = !showing ? '#f5c84222' : 'transparent';
       }
     };
     // ───────────────────────────────────────────────────────
