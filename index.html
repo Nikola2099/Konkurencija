@@ -1029,6 +1029,7 @@
     <nav>
       <button class="nav-btn active" onclick="showView('overview')">Overview</button>
       <button class="nav-btn" onclick="showView('table')">Table</button>
+      <button class="nav-btn" onclick="showView('investors')">Investors</button>
       <button class="nav-btn" onclick="showView('map')">Map</button>
       <button class="nav-btn" onclick="showView('ai')" style="color:var(--accent)">✦ Ask AI</button>
     </nav>
@@ -1250,6 +1251,22 @@
 </div>
 
 <!-- AI VIEW -->
+<div class="view" id="investors-view" style="padding:32px">
+  <div class="section-title">Investors</div>
+  <div class="section-sub">Overview of all investors in the Serbia RE pipeline</div>
+  <div style="display:flex;align-items:center;gap:12px;margin:20px 0 24px;flex-wrap:wrap">
+    <input id="inv-search" type="text" placeholder="Search investor..." oninput="renderInvestors()"
+      style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 14px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;width:220px">
+    <select id="inv-sort" onchange="renderInvestors()"
+      style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;cursor:pointer">
+      <option value="mw">Sort by MW</option>
+      <option value="projects">Sort by Projects</option>
+      <option value="name">Sort by Name</option>
+    </select>
+  </div>
+  <div id="investors-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:20px"></div>
+</div>
+
 <div class="view" id="ai-view" style="padding:32px;max-width:860px;margin:0 auto">
   <div class="section-title">✦ Ask AI</div>
   <div class="section-sub">Postavi pitanje o srpskom tržištu obnovljive energije — projektima, investitorima, kapacitetima, statusima, rokovima</div>
@@ -1557,6 +1574,7 @@ function showView(name) {
   document.getElementById(name + '-view').classList.add('active');
   event.target.classList.add('active');
 
+  if (name === 'investors') renderInvestors();
   if (name === 'map') renderMap();
   if (name === 'charts') renderCharts2();
   if (name === 'table') { currentPage = 1; renderTable(); }
@@ -2283,6 +2301,121 @@ function closeInvestorModal() {
 }
 
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeInvestorModal(); });
+
+
+// ===== INVESTORS VIEW =====
+const INV_ANALYSIS_KEY = 'inv_analysis_v1';
+
+function loadInvAnalyses() {
+  try { return JSON.parse(localStorage.getItem(INV_ANALYSIS_KEY) || '{}'); } catch(e) { return {}; }
+}
+
+function saveInvAnalysis(investor, text) {
+  const all = loadInvAnalyses();
+  all[investor] = text;
+  localStorage.setItem(INV_ANALYSIS_KEY, JSON.stringify(all));
+  const safeId = btoa(encodeURIComponent(investor)).replace(/[^a-zA-Z0-9]/g,'');
+  const btn = document.getElementById('inv-save-' + safeId);
+  if (btn) { const orig = btn.textContent; btn.textContent = 'Saved ✓'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
+}
+
+function renderInvestors() {
+  const q = (document.getElementById('inv-search') ? document.getElementById('inv-search').value : '').toLowerCase();
+  const sortBy = document.getElementById('inv-sort') ? document.getElementById('inv-sort').value : 'mw';
+  const isAdmin = EDIT_USERS.has(currentUser);
+  const analyses = loadInvAnalyses();
+  const techColors = { Wind:'#3b9eff', Solar:'#f5c842', Hybrid:'#a855f7', BESS:'#f97316' };
+
+  const invMap = {};
+  PROJECTS.forEach(function(p) {
+    const inv = (p.investor || '').trim();
+    if (!inv || inv === '/') return;
+    if (!invMap[inv]) invMap[inv] = [];
+    invMap[inv].push(p);
+  });
+
+  let investors = Object.entries(invMap);
+  if (q) investors = investors.filter(function(e){ return e[0].toLowerCase().includes(q); });
+
+  investors.sort(function(a, b) {
+    if (sortBy === 'mw') return b[1].reduce(function(s,p){return s+p.capacity_mw;},0) - a[1].reduce(function(s,p){return s+p.capacity_mw;},0);
+    if (sortBy === 'projects') return b[1].length - a[1].length;
+    return a[0].localeCompare(b[0]);
+  });
+
+  const grid = document.getElementById('investors-grid');
+  if (!grid) return;
+
+  grid.innerHTML = investors.map(function(entry) {
+    const name = entry[0], projs = entry[1];
+    const totalMW = projs.reduce(function(s,p){return s+p.capacity_mw;},0);
+    const high   = projs.filter(function(p){return p.probability==='HIGH';}).length;
+    const low    = projs.filter(function(p){return p.probability==='LOW';}).length;
+    const inOp   = projs.filter(function(p){return p.status_overall==='In operation';}).length;
+    const inDev  = projs.filter(function(p){return p.status_overall==='In development';}).length;
+    const inCon  = projs.filter(function(p){return p.status_overall==='In construction';}).length;
+    const preCon = projs.filter(function(p){return p.status_overall==='Pre-construction';}).length;
+
+    const techCount = {};
+    projs.forEach(function(p){ const t=p.technology.trim(); techCount[t]=(techCount[t]||0)+1; });
+    const techBadges = Object.entries(techCount).map(function(te){
+      const t=te[0], n=te[1], col=techColors[t]||'#888';
+      return '<span style="font-size:10px;padding:2px 8px;border-radius:4px;background:'+col+'22;color:'+col+';border:1px solid '+col+'33;font-weight:600">'+t+' x'+n+'</span>';
+    }).join('');
+
+    const probTotal = high + low;
+    const highPct = probTotal > 0 ? Math.round(high/probTotal*100) : 0;
+    const safeId = btoa(encodeURIComponent(name)).replace(/[^a-zA-Z0-9]/g,'');
+    const analysis = analyses[name] || '';
+
+    const dot = function(col){ return '<span style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0;display:inline-block"></span>'; };
+    const statusRows = [
+      inOp  >0 ? '<div style="display:flex;align-items:center;gap:6px;padding:3px 0">'+dot('#22c55e')+'<span style="font-size:12px;color:var(--muted);flex:1">In operation</span><span style="font-size:12px;font-weight:600;color:#22c55e">'+inOp+'</span></div>' : '',
+      inCon >0 ? '<div style="display:flex;align-items:center;gap:6px;padding:3px 0">'+dot('#0099ff')+'<span style="font-size:12px;color:var(--muted);flex:1">In construction</span><span style="font-size:12px;font-weight:600;color:#0099ff">'+inCon+'</span></div>' : '',
+      preCon>0 ? '<div style="display:flex;align-items:center;gap:6px;padding:3px 0">'+dot('#00e5a0')+'<span style="font-size:12px;color:var(--muted);flex:1">Pre-construction</span><span style="font-size:12px;font-weight:600;color:#00e5a0">'+preCon+'</span></div>' : '',
+      inDev >0 ? '<div style="display:flex;align-items:center;gap:6px;padding:3px 0">'+dot('#475569')+'<span style="font-size:12px;color:var(--muted);flex:1">In development</span><span style="font-size:12px;font-weight:600;color:#94a3b8">'+inDev+'</span></div>' : '',
+    ].filter(Boolean).join('');
+
+    const projList = projs.map(function(p){
+      const col = techColors[p.technology.trim()]||'#888';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openProjSummary('+p.id+')">'
+        +'<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:'+col+'22;color:'+col+';font-weight:600;flex-shrink:0">'+p.technology.trim()+'</span>'
+        +'<span style="font-size:12px;color:var(--text);flex:1;font-weight:500">'+p.name+'</span>'
+        +'<span style="font-size:11px;color:var(--muted);flex-shrink:0">'+p.capacity_mw+' MW</span>'
+        +'</div>';
+    }).join('');
+
+    const safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const escAnalysis = analysis.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:16px">'
+      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">'
+      +'<div><div style="font-family:Syne,sans-serif;font-weight:700;font-size:15px;color:var(--text);margin-bottom:8px">'+name+'</div>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap">'+techBadges+'</div></div>'
+      +'<div style="text-align:right;flex-shrink:0">'
+      +'<div style="font-family:Syne,sans-serif;font-weight:800;font-size:22px;color:var(--accent)">'+Math.round(totalMW)+'<span style="font-size:12px;font-weight:400;color:var(--muted)"> MW</span></div>'
+      +'<div style="font-size:11px;color:var(--muted)">'+projs.length+' project'+(projs.length!==1?'s':'')+'</div>'
+      +'</div></div>'
+      +'<div style="background:var(--surface2);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:2px">'+statusRows+'</div>'
+      +(probTotal>0
+        ? '<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px">Probability</div>'
+          +'<div style="display:flex;align-items:center;gap:10px">'
+          +'<div style="flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+highPct+'%;background:#22c55e;border-radius:3px"></div></div>'
+          +'<span style="font-size:11px;color:#22c55e;font-weight:600">HIGH '+high+'</span>'
+          +'<span style="font-size:11px;color:#ef4444;font-weight:600">LOW '+low+'</span>'
+          +'</div></div>'
+        : '')
+      +'<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px">Projects</div><div>'+projList+'</div></div>'
+      +'<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px">Analysis</div>'
+      +(isAdmin
+        ? '<textarea id="inv-ta-'+safeId+'" placeholder="Write investor analysis..." style="width:100%;min-height:80px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:\'DM Sans\',sans-serif;font-size:12px;line-height:1.6;outline:none;resize:vertical;box-sizing:border-box">'+escAnalysis+'</textarea>'
+         +'<button id="inv-save-'+safeId+'" onclick="saveInvAnalysis(\''+safeName+'\',document.getElementById(\'inv-ta-'+safeId+'\').value)" style="margin-top:8px;padding:6px 16px;background:var(--accent);border:none;border-radius:8px;color:#0b0f1a;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">Save</button>'
+        : (analysis
+          ? '<div style="font-size:12px;color:var(--muted);line-height:1.7;white-space:pre-wrap;background:var(--surface2);border-radius:8px;padding:10px">'+escAnalysis+'</div>'
+          : '<div style="font-size:12px;color:var(--muted);font-style:italic">No analysis yet.</div>'))
+      +'</div></div>';
+  }).join('');
+}
 
 // ========== INIT ==========
 // Production data from Proizvodnja_vetroelektrana.xlsx (Ukratko + Proizvodnja sheets)
