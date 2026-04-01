@@ -2795,11 +2795,12 @@ async function sendAI() {
   try {
     const res = await fetch(SB_URL + '/functions/v1/ai-proxy', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json'},
-      body:JSON.stringify({ model:'claude-sonnet-4-5', max_tokens:1500, system:getAISystem(), messages:aiHistory })
+      headers:{ 'Content-Type':'application/json', 'apikey': SB_KEY },
+      body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1500, system:getAISystem(), messages:aiHistory })
     });
+    if (!res.ok) { const txt = await res.text(); throw new Error('HTTP '+res.status+': '+txt.slice(0,200)); }
     const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
     const reply = data.content?.[0]?.text || 'Nema odgovora.';
     aiHistory.push({ role:'assistant', content:reply });
     document.getElementById(thinkId)?.remove();
@@ -2860,11 +2861,12 @@ async function sendFloatAI() {
   try {
     const res = await fetch(SB_URL + '/functions/v1/ai-proxy', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json'},
-      body:JSON.stringify({ model:'claude-sonnet-4-5', max_tokens:800, system:getAISystem(), messages:floatAiHistory })
+      headers:{ 'Content-Type':'application/json', 'apikey': SB_KEY },
+      body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:800, system:getAISystem(), messages:floatAiHistory })
     });
+    if (!res.ok) { const txt = await res.text(); throw new Error('HTTP '+res.status+': '+txt.slice(0,200)); }
     const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
     const reply = data.content?.[0]?.text || 'Nema odgovora.';
     floatAiHistory.push({ role:'assistant', content:reply });
     document.getElementById(thinkId)?.remove();
@@ -2887,6 +2889,7 @@ async function sendFloatAI() {
 
 // ===== PROJECT SUMMARY MODAL =====
 let _psmProjectId = null;
+let _editingOfftakeIdx = null;
 
 // ===== PROJECT SUMMARY MODAL =====
 
@@ -3291,6 +3294,7 @@ function renderOfftakeInfo(p) {
       const priceStr = e.price ? e.price+' €/MWh' : '—';
       return '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+col+';border-radius:10px;padding:12px 14px;position:relative;margin-bottom:8px">'
         +(isAdmin ? '<button onclick="deleteOfftakeEntry('+i+')" style="position:absolute;top:8px;right:8px;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px" onmouseover="this.style.color=\'var(--danger)\'" onmouseout="this.style.color=\'var(--muted)\'">✕</button>' : '')
+        +(isAdmin ? '<button onclick="showOfftakeForm('+i+')" style="position:absolute;top:8px;right:30px;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'var(--muted)\'">✎</button>' : '')
         +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:13px;color:'+col+';margin-bottom:8px">'+e.type+'</div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
         +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Capacity Awarded</div><div style="font-size:13px;font-weight:500;color:var(--text)">'+(e.capacity_mw ? e.capacity_mw+' MW' : '—')+'</div></div>'
@@ -3304,15 +3308,25 @@ function renderOfftakeInfo(p) {
     : '';
 }
 
-function showOfftakeForm() {
-  document.getElementById('offtake-type').value = '';
-  document.getElementById('offtake-capacity-mw').value = '';
-  document.getElementById('offtake-price').value = '';
+function showOfftakeForm(idx) {
+  _editingOfftakeIdx = (idx !== undefined) ? idx : null;
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (_editingOfftakeIdx !== null && p && p.offtake_entries && p.offtake_entries[_editingOfftakeIdx]) {
+    const e = p.offtake_entries[_editingOfftakeIdx];
+    document.getElementById('offtake-type').value = e.type || '';
+    document.getElementById('offtake-capacity-mw').value = e.capacity_mw !== null ? e.capacity_mw : '';
+    document.getElementById('offtake-price').value = e.price !== null ? e.price : '';
+  } else {
+    document.getElementById('offtake-type').value = '';
+    document.getElementById('offtake-capacity-mw').value = '';
+    document.getElementById('offtake-price').value = '';
+  }
   document.getElementById('psm-offtake-info-edit').style.display = 'flex';
   document.getElementById('psm-offtake-info-btns').style.display = 'none';
 }
 
 function cancelOfftakeInfo() {
+  _editingOfftakeIdx = null;
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
   document.getElementById('psm-offtake-info-edit').style.display = 'none';
   if (p) renderOfftakeInfo(p);
@@ -3329,7 +3343,12 @@ async function saveOfftakeInfo() {
     price: document.getElementById('offtake-price').value ? parseFloat(document.getElementById('offtake-price').value) : null
   };
   if (!p.offtake_entries) p.offtake_entries = [];
-  p.offtake_entries.push(entry);
+  if (_editingOfftakeIdx !== null && p.offtake_entries[_editingOfftakeIdx]) {
+    p.offtake_entries[_editingOfftakeIdx] = entry;
+  } else {
+    p.offtake_entries.push(entry);
+  }
+  _editingOfftakeIdx = null;
   try {
     await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
       method:'PATCH',
