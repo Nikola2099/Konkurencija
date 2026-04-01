@@ -1132,6 +1132,7 @@
             <th onclick="sortBy('probability')">Prob. <span class="sort-icon">↕</span></th>
             <th>Permitting</th>
             <th>Offtake</th>
+            <th style="width:40px"></th>
           </tr>
         </thead>
         <tbody id="table-body"></tbody>
@@ -1606,7 +1607,9 @@ function renderTable() {
       <td><span class="${p.probability ? 'prob-'+p.probability : ''}">${p.probability || '—'}</span></td>
       <td style="font-size:11px;color:var(--muted);max-width:160px">${p.status_permitting}</td>
       <td style="font-size:11px;color:var(--muted)">${p.cfd}</td>
-      <td></td>
+      <td onclick="event.stopPropagation();goToProjectOnMap(${p.id})" style="cursor:pointer;text-align:center" title="Prikaži na mapi">
+        <span style="font-size:14px;opacity:.6;transition:opacity .2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">📍</span>
+      </td>
     </tr>`).join('');
   renderPagination(data.length);
 }
@@ -2082,6 +2085,7 @@ function renderMap() {
     };
 
     renderDistrictLayer();
+    renderProjectGeoLayer();
 
     // ── PRENOSNA MREŽA (grid.geojson) ──────────────────────
     leafletMap.createPane('gridPane');
@@ -3405,6 +3409,264 @@ async function deleteOfftakeEntry(idx) {
   renderOfftakeInfo(p);
 }
 
+// ===== PROJECT GEO (mini map) =====
+let _psmMiniMap = null;
+let _psmGeoMode = 'plant';
+let _psmGeoLinePts = [];
+let _psmGeoLineTempLayer = null;
+
+function setPsmGeoMode(mode) {
+  _psmGeoMode = mode;
+  _psmGeoLinePts = [];
+  if (_psmGeoLineTempLayer && _psmMiniMap) { _psmMiniMap.removeLayer(_psmGeoLineTempLayer); _psmGeoLineTempLayer = null; }
+  ['plant','ts','prp','line'].forEach(function(m) {
+    const b = document.getElementById('pgm-'+m);
+    if (!b) return;
+    b.style.background = m === mode ? 'var(--accent)' : 'transparent';
+    b.style.color = m === mode ? '#0b0f1a' : 'var(--muted)';
+    b.style.fontWeight = m === mode ? '600' : '';
+  });
+  const hints = { plant:'Klikni na mapu da dodaš tačku elektrane', ts:'Klikni na mapu da postaviš TS', prp:'Klikni na mapu da postaviš PRP', line:'Klikni tačke rute, zatim klikni "Završi"' };
+  document.getElementById('psm-geo-hint').textContent = hints[mode] || '';
+  const lineCtrl = document.getElementById('psm-geo-line-controls');
+  lineCtrl.style.display = mode === 'line' ? 'block' : 'none';
+}
+
+function initPsmMiniMap() {
+  if (!window.L) return;
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  const container = document.getElementById('psm-mini-map');
+  if (!container) return;
+
+  if (_psmMiniMap) {
+    _psmMiniMap.invalidateSize();
+    renderPsmGeoMarkers();
+    return;
+  }
+
+  _psmMiniMap = L.map('psm-mini-map', { center: [44.0, 21.0], zoom: 7 });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 18
+  }).addTo(_psmMiniMap);
+
+  _psmMiniMap.on('click', function(e) {
+    const lat = parseFloat(e.latlng.lat.toFixed(6));
+    const lng = parseFloat(e.latlng.lng.toFixed(6));
+    const proj = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+    if (!proj) return;
+    if (!proj.project_geo) proj.project_geo = { plant:[], ts:[], prp:[], lines:[] };
+
+    if (_psmGeoMode === 'line') {
+      _psmGeoLinePts.push([lat, lng]);
+      if (_psmGeoLineTempLayer) _psmMiniMap.removeLayer(_psmGeoLineTempLayer);
+      if (_psmGeoLinePts.length >= 2) {
+        _psmGeoLineTempLayer = L.polyline(_psmGeoLinePts, { color:'#f59e0b', weight:2, dashArray:'5,5' }).addTo(_psmMiniMap);
+      } else {
+        _psmGeoLineTempLayer = L.circleMarker([lat,lng], { radius:4, color:'#f59e0b', fillOpacity:1 }).addTo(_psmMiniMap);
+      }
+      return;
+    }
+
+    proj.project_geo[_psmGeoMode].push([lat, lng]);
+    renderPsmGeoMarkers();
+    renderPsmGeoList();
+  });
+
+  renderPsmGeoMarkers();
+  renderPsmGeoList();
+
+  // Zoom to project location if geo exists
+  if (p) {
+    const geo = p.project_geo || {};
+    const allPts = (geo.plant||[]).concat(geo.ts||[]).concat(geo.prp||[]);
+    if (allPts.length > 0) {
+      _psmMiniMap.setView(allPts[0], 11);
+    } else {
+      const LOCATION_COORDS_MINI = {"Ada":[45.7961,20.1242],"Aleksinac":[43.5428,21.7108],"Alibunar":[45.0817,20.9647],"Bela Palanka":[43.2228,22.3103],"Boljevac":[43.8275,21.9528],"Bor":[44.0769,22.0986],"Bujanovac":[42.4606,21.7714],"Feketić":[45.7717,19.7383],"Golubac":[44.6522,21.6369],"Jagodina":[43.9766,21.2611],"Kikinda":[45.8283,20.4633],"Kladovo":[44.6047,22.6133],"Knjaževac":[43.5664,22.2564],"Kostolac":[44.7239,21.2081],"Kovačica":[45.1122,20.6211],"Kovin":[44.7436,20.9731],"Kragujevac":[44.0128,20.9114],"Kruševac":[43.5808,21.3281],"Kučevo":[44.4811,21.6658],"Kula":[45.6067,19.5272],"Lebane":[42.9206,21.7347],"Leskovac":[42.9981,21.9461],"Majdanpek":[44.4192,21.9414],"Negotin":[44.2283,22.5194],"Niš":[43.3209,21.8954],"Odžaci":[45.5083,19.2622],"Pančevo":[44.8708,20.6408],"Petrovac":[44.3786,21.4097],"Pirot":[43.1544,22.5861],"Plandište":[45.2317,21.1203],"Prokuplje":[43.2347,21.5883],"Ražanj":[43.6608,21.5483],"Sjenica":[43.2728,20.0003],"Sombor":[45.7783,19.1136],"Sremska Mitrovica":[44.9736,19.6131],"Subotica":[46.1006,19.6658],"Svrljig":[43.4144,22.1197],"Šid":[45.1253,19.2258],"Valjevo":[44.2747,19.8864],"Varvarin":[43.7206,21.3744],"Vranje":[42.5503,21.9006],"Vršac":[45.1186,21.3069],"Zaječar":[43.9056,22.2736],"Žabalj":[45.3736,20.0608],"Žagubica":[44.2022,21.7883],"Zrenjanin":[45.3811,20.3858]};
+      const coords = LOCATION_COORDS_MINI[p.location];
+      if (coords) _psmMiniMap.setView(coords, 10);
+    }
+  }
+}
+
+function renderPsmGeoMarkers() {
+  if (!_psmMiniMap) return;
+  // Remove old geo markers (keep temp line layer)
+  _psmMiniMap.eachLayer(function(layer) {
+    if (layer._psmGeoMarker) _psmMiniMap.removeLayer(layer);
+  });
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p || !p.project_geo) return;
+  const geo = p.project_geo;
+  const techColors = { Wind:'#3b9eff', Solar:'#f5c842', Hybrid:'#a855f7', BESS:'#f97316' };
+  const plantColor = techColors[p.technology.trim()] || '#00e5a0';
+
+  (geo.plant||[]).forEach(function(pt, i) {
+    const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:plantColor, fillColor:plantColor, fillOpacity:0.8, weight:2 }).addTo(_psmMiniMap);
+    m._psmGeoMarker = true;
+    m.bindTooltip('Plant #'+(i+1));
+  });
+  (geo.ts||[]).forEach(function(pt, i) {
+    const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:'#f97316', fillColor:'#f97316', fillOpacity:0.8, weight:2 }).addTo(_psmMiniMap);
+    m._psmGeoMarker = true;
+    m.bindTooltip('TS #'+(i+1));
+  });
+  (geo.prp||[]).forEach(function(pt, i) {
+    const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:'#a855f7', fillColor:'#a855f7', fillOpacity:0.8, weight:2 }).addTo(_psmMiniMap);
+    m._psmGeoMarker = true;
+    m.bindTooltip('PRP #'+(i+1));
+  });
+  (geo.lines||[]).forEach(function(line, i) {
+    if (!line.pts || line.pts.length < 2) return;
+    const m = L.polyline(line.pts, { color:'#f59e0b', weight:2.5 }).addTo(_psmMiniMap);
+    m._psmGeoMarker = true;
+    if (line.label) m.bindTooltip(line.label);
+  });
+}
+
+function renderPsmGeoList() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  const el = document.getElementById('psm-geo-list');
+  if (!el || !p || !p.project_geo) { if(el) el.innerHTML=''; return; }
+  const geo = p.project_geo;
+  const techColors = { Wind:'#3b9eff', Solar:'#f5c842', Hybrid:'#a855f7', BESS:'#f97316' };
+  const plantColor = techColors[p.technology.trim()] || '#00e5a0';
+  const isAdmin = typeof EDIT_USERS !== 'undefined' && EDIT_USERS.has(currentUser);
+  let html = '';
+
+  (geo.plant||[]).forEach(function(pt, i) {
+    html += geoListRow('plant', i, '🌀', plantColor, 'Plant #'+(i+1), pt[0]+', '+pt[1], isAdmin);
+  });
+  (geo.ts||[]).forEach(function(pt, i) {
+    html += geoListRow('ts', i, '⚡', '#f97316', 'TS #'+(i+1), pt[0]+', '+pt[1], isAdmin);
+  });
+  (geo.prp||[]).forEach(function(pt, i) {
+    html += geoListRow('prp', i, '🔌', '#a855f7', 'PRP #'+(i+1), pt[0]+', '+pt[1], isAdmin);
+  });
+  (geo.lines||[]).forEach(function(line, i) {
+    html += geoListRow('lines', i, '📏', '#f59e0b', (line.label||'Linija #'+(i+1)), line.pts.length+' tačaka', isAdmin);
+  });
+
+  el.innerHTML = html || '<div style="color:var(--muted);font-size:12px">Nema ucrtanih elemenata.</div>';
+}
+
+function geoListRow(type, idx, icon, color, label, sub, isAdmin) {
+  return '<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border-left:3px solid '+color+';border-radius:8px;padding:8px 12px">'
+    +'<span style="font-size:14px">'+icon+'</span>'
+    +'<div style="flex:1"><div style="font-size:12px;font-weight:600;color:var(--text)">'+label+'</div>'
+    +'<div style="font-size:11px;color:var(--muted)">'+sub+'</div></div>'
+    +(isAdmin ? '<button onclick="deletePsmGeoItem(\''+type+'\','+idx+')" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px" onmouseover="this.style.color=\'var(--danger)\'" onmouseout="this.style.color=\'var(--muted)\'">✕</button>' : '')
+    +'</div>';
+}
+
+function deletePsmGeoItem(type, idx) {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p || !p.project_geo) return;
+  p.project_geo[type].splice(idx, 1);
+  renderPsmGeoMarkers();
+  renderPsmGeoList();
+}
+
+function finishPsmGeoLine() {
+  if (_psmGeoLinePts.length < 2) { alert('Dodaj bar 2 tačke za liniju.'); return; }
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  if (!p.project_geo) p.project_geo = { plant:[], ts:[], prp:[], lines:[] };
+  if (!p.project_geo.lines) p.project_geo.lines = [];
+  const label = document.getElementById('psm-geo-line-label').value.trim();
+  p.project_geo.lines.push({ pts: _psmGeoLinePts.slice(), label: label });
+  _psmGeoLinePts = [];
+  if (_psmGeoLineTempLayer) { _psmMiniMap.removeLayer(_psmGeoLineTempLayer); _psmGeoLineTempLayer = null; }
+  document.getElementById('psm-geo-line-label').value = '';
+  renderPsmGeoMarkers();
+  renderPsmGeoList();
+}
+
+function cancelPsmGeoLine() {
+  _psmGeoLinePts = [];
+  if (_psmGeoLineTempLayer) { _psmMiniMap.removeLayer(_psmGeoLineTempLayer); _psmGeoLineTempLayer = null; }
+}
+
+async function savePsmGeo() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ project_geo: p.project_geo })
+    });
+    renderProjectGeoLayer();
+    const btn = event.target;
+    const orig = btn.textContent;
+    btn.textContent = 'Sačuvano ✓';
+    setTimeout(function(){ btn.textContent = orig; }, 1500);
+  } catch(e) { console.warn('Save geo failed:', e); }
+}
+
+// ===== PROJECT GEO LAYER (main map) =====
+let projectGeoLayer = null;
+
+function renderProjectGeoLayer() {
+  if (!leafletMap) return;
+  if (projectGeoLayer) leafletMap.removeLayer(projectGeoLayer);
+  const techColors = { Wind:'#3b9eff', Solar:'#f5c842', Hybrid:'#a855f7', BESS:'#f97316' };
+
+  const layerGroup = L.layerGroup();
+
+  PROJECTS.forEach(function(p) {
+    const geo = p.project_geo;
+    if (!geo) return;
+    const plantColor = techColors[p.technology.trim()] || '#00e5a0';
+
+    (geo.plant||[]).forEach(function(pt, i) {
+      const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:plantColor, fillColor:plantColor, fillOpacity:0.85, weight:2, pane:'gridPane' });
+      m.bindTooltip('<b>'+p.name+'</b><br>Plant point #'+(i+1), { sticky:true, className:'district-tooltip' });
+      m.on('click', function(){ openProjSummary(p.id); });
+      layerGroup.addLayer(m);
+    });
+    (geo.ts||[]).forEach(function(pt, i) {
+      const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:'#f97316', fillColor:'#f97316', fillOpacity:0.85, weight:2, pane:'gridPane' });
+      m.bindTooltip('<b>'+p.name+'</b><br>TS #'+(i+1), { sticky:true, className:'district-tooltip' });
+      m.on('click', function(){ openProjSummary(p.id); });
+      layerGroup.addLayer(m);
+    });
+    (geo.prp||[]).forEach(function(pt, i) {
+      const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:'#a855f7', fillColor:'#a855f7', fillOpacity:0.85, weight:2, pane:'gridPane' });
+      m.bindTooltip('<b>'+p.name+'</b><br>PRP #'+(i+1), { sticky:true, className:'district-tooltip' });
+      m.on('click', function(){ openProjSummary(p.id); });
+      layerGroup.addLayer(m);
+    });
+    (geo.lines||[]).forEach(function(line) {
+      if (!line.pts || line.pts.length < 2) return;
+      const l = L.polyline(line.pts, { color:'#f59e0b', weight:2.5, pane:'gridPane' });
+      if (line.label) l.bindTooltip(p.name+' · '+line.label, { sticky:true, className:'district-tooltip' });
+      layerGroup.addLayer(l);
+    });
+  });
+
+  projectGeoLayer = layerGroup;
+  layerGroup.addTo(leafletMap);
+}
+
+window.goToProjectOnMap = function(id) {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === id; });
+  if (!p) return;
+  showView('map');
+  setTimeout(function() {
+    if (!leafletMap) return;
+    const geo = p.project_geo || {};
+    const allPts = (geo.plant||[]).concat(geo.ts||[]).concat(geo.prp||[]);
+    if (allPts.length > 0) {
+      leafletMap.setView(allPts[0], 12);
+    } else {
+      const LOCATION_COORDS_NAV = {"Ada":[45.7961,20.1242],"Aleksinac":[43.5428,21.7108],"Alibunar":[45.0817,20.9647],"Bela Palanka":[43.2228,22.3103],"Boljevac":[43.8275,21.9528],"Bor":[44.0769,22.0986],"Bujanovac":[42.4606,21.7714],"Feketić":[45.7717,19.7383],"Golubac":[44.6522,21.6369],"Jagodina":[43.9766,21.2611],"Kikinda":[45.8283,20.4633],"Kladovo":[44.6047,22.6133],"Knjaževac":[43.5664,22.2564],"Kostolac":[44.7239,21.2081],"Kovačica":[45.1122,20.6211],"Kovin":[44.7436,20.9731],"Kragujevac":[44.0128,20.9114],"Kruševac":[43.5808,21.3281],"Kučevo":[44.4811,21.6658],"Kula":[45.6067,19.5272],"Lebane":[42.9206,21.7347],"Leskovac":[42.9981,21.9461],"Majdanpek":[44.4192,21.9414],"Negotin":[44.2283,22.5194],"Niš":[43.3209,21.8954],"Odžaci":[45.5083,19.2622],"Pančevo":[44.8708,20.6408],"Petrovac":[44.3786,21.4097],"Pirot":[43.1544,22.5861],"Plandište":[45.2317,21.1203],"Prokuplje":[43.2347,21.5883],"Ražanj":[43.6608,21.5483],"Sjenica":[43.2728,20.0003],"Sombor":[45.7783,19.1136],"Sremska Mitrovica":[44.9736,19.6131],"Subotica":[46.1006,19.6658],"Svrljig":[43.4144,22.1197],"Šid":[45.1253,19.2258],"Valjevo":[44.2747,19.8864],"Varvarin":[43.7206,21.3744],"Vranje":[42.5503,21.9006],"Vršac":[45.1186,21.3069],"Zaječar":[43.9056,22.2736],"Žabalj":[45.3736,20.0608],"Žagubica":[44.2022,21.7883],"Zrenjanin":[45.3811,20.3858]};
+      const coords = LOCATION_COORDS_NAV[p.location];
+      if (coords) leafletMap.setView(coords, 11);
+    }
+  }, 300);
+};
+
 function renderNewsLinks(p, type) {
   const isAdmin = EDIT_USERS.has(currentUser);
   const links = p[type+'_links'] || [];
@@ -4103,7 +4365,7 @@ async function deleteAspect(asp, event) {
 }
 
 function switchPsmTab(tab, btn) {
-  ['overview','site','grid','wtg','offtake','permits','risk','notes'].forEach(function(t) {
+  ['overview','site','grid','wtg','offtake','permits','risk','notes','mapgeo'].forEach(function(t) {
     document.getElementById('psm-tab-'+t).style.display = t===tab ? 'block' : 'none';
   });
   document.querySelectorAll('.psm-tab').forEach(function(b) {
@@ -4114,6 +4376,7 @@ function switchPsmTab(tab, btn) {
   btn.style.borderBottomColor = 'var(--accent)';
   btn.style.color = 'var(--text)';
   btn.style.fontWeight = '600';
+  if (tab === 'mapgeo') { setTimeout(initPsmMiniMap, 50); }
 }
 
 
@@ -4464,7 +4727,8 @@ async function loadProjectsFromDB() {
         offtake_price:       row.offtake_price       || '',
         offtake_remaining_mw:row.offtake_remaining_mw|| null,
         offtake_entries:     row.offtake_entries     || [],
-        rtb_date:            row.rtb_date            || ''
+        rtb_date:            row.rtb_date            || '',
+        project_geo:         row.project_geo         || { plant: [], ts: [], prp: [], lines: [] }
       };
     });
     console.log('Loaded ' + PROJECTS.length + ' projects from Supabase');
@@ -4762,6 +5026,7 @@ function initApp() {
       <button class="psm-tab" onclick="switchPsmTab('permits',this)" style="padding:10px 14px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">Permitting</button>
       <button class="psm-tab" onclick="switchPsmTab('risk',this)" style="padding:10px 14px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">Risk</button>
       <button class="psm-tab" onclick="switchPsmTab('notes',this)" style="padding:10px 14px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">Notes</button>
+      <button class="psm-tab" onclick="switchPsmTab('mapgeo',this)" style="padding:10px 14px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer">Map</button>
     </div>
 
     <div style="overflow-y:auto;padding:20px 24px;flex:1">
@@ -5140,6 +5405,29 @@ function initApp() {
         </div>
         <div id="psm-notes-btn-wrap"></div>
       </div>
+
+      <!-- MAP TAB -->
+      <div id="psm-tab-mapgeo" style="display:none">
+  <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">📍 Project Map</div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap" id="psm-geo-mode-btns">
+    <button onclick="setPsmGeoMode('plant')" id="pgm-plant" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:var(--accent);color:#0b0f1a;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer">🌀 Plant</button>
+    <button onclick="setPsmGeoMode('ts')" id="pgm-ts" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer">⚡ TS</button>
+    <button onclick="setPsmGeoMode('prp')" id="pgm-prp" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer">🔌 PRP</button>
+    <button onclick="setPsmGeoMode('line')" id="pgm-line" style="padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer">📏 Linija</button>
+    <span id="psm-geo-hint" style="font-size:11px;color:var(--muted);align-self:center;margin-left:4px">Klikni na mapu da dodaš tačku</span>
+  </div>
+  <div id="psm-mini-map" style="height:320px;border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:12px"></div>
+  <div id="psm-geo-line-controls" style="display:none;background:var(--surface2);border-radius:8px;padding:10px 12px;margin-bottom:12px;display:none">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Label dalekovoda (opciono)</div>
+    <div style="display:flex;gap:8px">
+      <input id="psm-geo-line-label" type="text" placeholder="npr. Veza ka TS Vranje 2" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none">
+      <button onclick="finishPsmGeoLine()" style="padding:7px 14px;background:var(--accent);border:none;border-radius:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Završi</button>
+      <button onclick="cancelPsmGeoLine()" style="padding:7px 12px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;cursor:pointer">Otkaži</button>
+    </div>
+  </div>
+  <div id="psm-geo-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+  <button onclick="savePsmGeo()" style="background:var(--accent);border:none;border-radius:8px;padding:9px 20px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Sačuvaj</button>
+</div>
 
     </div>
   </div>
