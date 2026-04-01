@@ -1235,6 +1235,8 @@
           <button class="map-status-btn" data-status="In construction" onclick="setMapStatus('In construction')" style="padding:5px 12px;border-radius:6px;border:1px solid #0099ff44;background:transparent;color:#0099ff;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s">In Construction</button>
           <button class="map-status-btn" data-status="In development" onclick="setMapStatus('In development')" style="padding:5px 12px;border-radius:6px;border:1px solid #47556944;background:transparent;color:#94a3b8;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s">In Development</button>
           <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
+          <button id="districts-toggle-btn" onclick="toggleDistrictsLayer()" style="padding:5px 12px;border-radius:6px;border:1px solid #a855f744;background:#a855f722;color:#a855f7;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s">Okruzi</button>
+          <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
           <button id="grid-toggle-btn" onclick="toggleGridLayer()" style="padding:5px 12px;border-radius:6px;border:1px solid #f5c84244;background:transparent;color:#f5c842;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:5px">
             <span style="font-size:10px">⚡</span> Prenosna mreža
           </button>
@@ -1991,8 +1993,12 @@ function renderMap() {
             b.dataset.status === 'In development' ? '#94a3b8' : 'var(--text)';
         }
       });
-      renderDistrictLayer();
+      if (districtsVisible) renderDistrictLayer();
+      else if (districtLayer) { leafletMap.removeLayer(districtLayer); districtLayer = null; if (mapLegend) { mapLegend.remove(); mapLegend = null; } }
+      renderProjectMarkers();
     };
+    let districtsVisible = true;
+    let projectMarkersLayer = null;
     let districtLayer = null;
     let mapLegend = null;
 
@@ -2093,13 +2099,59 @@ function renderMap() {
       mapLegend.addTo(leafletMap);
     }
 
+    window.toggleDistrictsLayer = function() {
+      districtsVisible = !districtsVisible;
+      const btn = document.getElementById('districts-toggle-btn');
+      if (districtsVisible) {
+        btn.style.background = '#a855f722';
+        btn.style.borderColor = '#a855f744';
+        btn.style.color = '#a855f7';
+        renderDistrictLayer();
+      } else {
+        btn.style.background = 'transparent';
+        btn.style.borderColor = '#a855f722';
+        btn.style.color = '#64748b';
+        if (districtLayer) { leafletMap.removeLayer(districtLayer); districtLayer = null; }
+        if (mapLegend) { mapLegend.remove(); mapLegend = null; }
+      }
+      renderProjectMarkers();
+    };
+
+    function renderProjectMarkers() {
+      if (projectMarkersLayer) { leafletMap.removeLayer(projectMarkersLayer); projectMarkersLayer = null; }
+      const isTechFiltered = activeMapTech !== 'All';
+      const isStatusFiltered = activeMapStatus !== 'All';
+      if (!isTechFiltered && !isStatusFiltered) return;
+      const filtered = allProjects.filter(p => {
+        const techOk = !isTechFiltered || p.technology === activeMapTech;
+        const statusOk = !isStatusFiltered || p.status === activeMapStatus;
+        return techOk && statusOk;
+      });
+      projectMarkersLayer = L.layerGroup();
+      const techColorMap = { Wind:'#38bdf8', Solar:'#fbbf24', 'Battery Storage':'#34d399', Hybrid:'#a855f7' };
+      filtered.forEach(p => {
+        const coords = LOCATION_COORDS[p.location];
+        if (!coords) return;
+        const color = techColorMap[p.technology] || '#94a3b8';
+        const marker = L.circleMarker([coords[0], coords[1]], {
+          radius: 7, color: color, fillColor: color, fillOpacity: 0.85,
+          weight: 2, pane: 'projectGeoPane'
+        });
+        marker.bindTooltip(`<b>${p.name}</b><br>${p.technology} · ${p.status}<br>${p.capacity_mw ? p.capacity_mw + ' MW' : ''}`, { sticky: true });
+        projectMarkersLayer.addLayer(marker);
+      });
+      projectMarkersLayer.addTo(leafletMap);
+    }
+
     // Global function for filter buttons
     window.setMapTech = function(tech) {
       activeMapTech = tech;
       document.querySelectorAll('.tech-filter-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.tech === tech);
       });
-      renderDistrictLayer();
+      if (districtsVisible) renderDistrictLayer();
+      else if (districtLayer) { leafletMap.removeLayer(districtLayer); districtLayer = null; if (mapLegend) { mapLegend.remove(); mapLegend = null; } }
+      renderProjectMarkers();
     };
 
     renderDistrictLayer();
