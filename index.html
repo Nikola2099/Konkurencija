@@ -2304,26 +2304,52 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeInvesto
 
 
 // ===== INVESTORS VIEW =====
-const INV_ANALYSIS_KEY = 'inv_analysis_v1';
+let _invAnalysesCache = null;
 
-function loadInvAnalyses() {
-  try { return JSON.parse(localStorage.getItem(INV_ANALYSIS_KEY) || '{}'); } catch(e) { return {}; }
+async function loadInvAnalyses() {
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/investor_notes?select=investor_name,analysis', {
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const map = {};
+    data.forEach(function(row) { map[row.investor_name] = row.analysis || ''; });
+    _invAnalysesCache = map;
+    return map;
+  } catch(e) {
+    console.warn('Could not load investor notes:', e);
+    return _invAnalysesCache || {};
+  }
 }
 
-function saveInvAnalysis(investor, text) {
-  const all = loadInvAnalyses();
-  all[investor] = text;
-  localStorage.setItem(INV_ANALYSIS_KEY, JSON.stringify(all));
+async function saveInvAnalysis(investor, text) {
   const safeId = btoa(encodeURIComponent(investor)).replace(/[^a-zA-Z0-9]/g,'');
   const btn = document.getElementById('inv-save-' + safeId);
-  if (btn) { const orig = btn.textContent; btn.textContent = 'Saved ✓'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
+  if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/investor_notes', {
+      method: 'POST',
+      headers: {
+        'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
+        'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({ investor_name: investor, analysis: text, updated_at: new Date().toISOString() })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (_invAnalysesCache) _invAnalysesCache[investor] = text;
+    if (btn) { btn.textContent = 'Saved ✓'; btn.disabled = false; setTimeout(function(){ btn.textContent = 'Save'; }, 1500); }
+  } catch(e) {
+    console.warn('Save investor note failed:', e);
+    if (btn) { btn.textContent = 'Error ✕'; btn.disabled = false; setTimeout(function(){ btn.textContent = 'Save'; }, 2000); }
+  }
 }
 
-function renderInvestors() {
+async function renderInvestors() {
   const q = (document.getElementById('inv-search') ? document.getElementById('inv-search').value : '').toLowerCase();
   const sortBy = document.getElementById('inv-sort') ? document.getElementById('inv-sort').value : 'mw';
   const isAdmin = EDIT_USERS.has(currentUser);
-  const analyses = loadInvAnalyses();
+  const analyses = await loadInvAnalyses();
   const techColors = { Wind:'#3b9eff', Solar:'#f5c842', Hybrid:'#a855f7', BESS:'#f97316' };
 
   const invMap = {};
