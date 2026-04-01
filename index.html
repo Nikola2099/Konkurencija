@@ -3278,8 +3278,8 @@ function renderOfftakeInfo(p) {
   listEl.style.display = 'flex';
   const typeColors = { 'CFD 1':'#00e5a0','CFD 2':'#0099ff','FiT':'#f5c842','PPA':'#a855f7','EPS':'#f97316','Other':'#64748b' };
   const totalInstalled = p.capacity_mw || 0;
-  const totalAwarded = entries.reduce(function(sum, e){ return sum + (parseFloat(e.capacity_mw)||0); }, 0);
-  const remaining = Math.max(0, totalInstalled - totalAwarded);
+  const totalAwarded = Math.round(entries.reduce(function(sum, e){ return sum + (parseFloat(e.capacity_mw)||0); }, 0) * 10) / 10;
+  const remaining = Math.round(Math.max(0, totalInstalled - totalAwarded) * 10) / 10;
   const remCol = remaining <= 0 ? '#22c55e' : remaining < totalInstalled * 0.3 ? '#f59e0b' : '#64748b';
   const summaryHtml = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">'
     +'<div style="background:var(--surface2);border-radius:8px;padding:10px 12px;text-align:center"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Installed</div><div style="font-size:15px;font-weight:700;font-family:Syne,sans-serif;color:var(--text)">'+totalInstalled+' MW</div></div>'
