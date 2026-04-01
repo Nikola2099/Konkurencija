@@ -2085,7 +2085,6 @@ function renderMap() {
     };
 
     renderDistrictLayer();
-    renderProjectGeoLayer();
 
     // ── PRENOSNA MREŽA (grid.geojson) ──────────────────────
     leafletMap.createPane('gridPane');
@@ -2212,6 +2211,11 @@ function renderMap() {
       });
       L.marker([city.lat, city.lng], { icon, interactive: false }).addTo(leafletMap);
     });
+
+    // Project geo layer (plant/TS/PRP/lines)
+    leafletMap.createPane('projectGeoPane');
+    leafletMap.getPane('projectGeoPane').style.zIndex = 460;
+    renderProjectGeoLayer();
   }
 
   if (window.L) {
@@ -3620,26 +3624,26 @@ function renderProjectGeoLayer() {
     const plantColor = techColors[p.technology.trim()] || '#00e5a0';
 
     (geo.plant||[]).forEach(function(pt, i) {
-      const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:plantColor, fillColor:plantColor, fillOpacity:0.85, weight:2, pane:'gridPane' });
+      const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:plantColor, fillColor:plantColor, fillOpacity:0.85, weight:2, pane:'projectGeoPane' });
       m.bindTooltip('<b>'+p.name+'</b><br>Plant point #'+(i+1), { sticky:true, className:'district-tooltip' });
       m.on('click', function(){ openProjSummary(p.id); });
       layerGroup.addLayer(m);
     });
     (geo.ts||[]).forEach(function(pt, i) {
-      const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:'#f97316', fillColor:'#f97316', fillOpacity:0.85, weight:2, pane:'gridPane' });
+      const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:'#f97316', fillColor:'#f97316', fillOpacity:0.85, weight:2, pane:'projectGeoPane' });
       m.bindTooltip('<b>'+p.name+'</b><br>TS #'+(i+1), { sticky:true, className:'district-tooltip' });
       m.on('click', function(){ openProjSummary(p.id); });
       layerGroup.addLayer(m);
     });
     (geo.prp||[]).forEach(function(pt, i) {
-      const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:'#a855f7', fillColor:'#a855f7', fillOpacity:0.85, weight:2, pane:'gridPane' });
+      const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:'#a855f7', fillColor:'#a855f7', fillOpacity:0.85, weight:2, pane:'projectGeoPane' });
       m.bindTooltip('<b>'+p.name+'</b><br>PRP #'+(i+1), { sticky:true, className:'district-tooltip' });
       m.on('click', function(){ openProjSummary(p.id); });
       layerGroup.addLayer(m);
     });
     (geo.lines||[]).forEach(function(line) {
       if (!line.pts || line.pts.length < 2) return;
-      const l = L.polyline(line.pts, { color:'#f59e0b', weight:2.5, pane:'gridPane' });
+      const l = L.polyline(line.pts, { color:'#f59e0b', weight:2.5, pane:'projectGeoPane' });
       if (line.label) l.bindTooltip(p.name+' · '+line.label, { sticky:true, className:'district-tooltip' });
       layerGroup.addLayer(l);
     });
