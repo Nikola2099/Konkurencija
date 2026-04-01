@@ -2084,6 +2084,9 @@ function renderMap() {
     renderDistrictLayer();
 
     // ── PRENOSNA MREŽA (grid.geojson) ──────────────────────
+    leafletMap.createPane('gridPane');
+    leafletMap.getPane('gridPane').style.zIndex = 450;
+
     let gridLayer = null;
     let gridVisible = false;
     let gridData = null;
@@ -2107,7 +2110,8 @@ function renderMap() {
           return {
             color: GRID_COLORS[v] || '#64748b',
             weight: GRID_WEIGHT[v] || 1.5,
-            opacity: 0.8
+            opacity: 0.8,
+            pane: 'gridPane'
           };
         },
         onEachFeature: function(feature, layer) {
@@ -2115,7 +2119,8 @@ function renderMap() {
           const kv = v ? Math.round(parseInt(v)/1000)+' kV' : '';
           const name = feature.properties.name || '';
           if (kv) layer.bindTooltip((name?name+' · ':'')+kv, { sticky:true, className:'district-tooltip' });
-        }
+        },
+        pane: 'gridPane'
       }).addTo(leafletMap);
     }
 
