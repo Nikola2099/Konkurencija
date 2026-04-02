@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Serbia RE Market Intelligence</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
 
@@ -1009,7 +1010,7 @@
     <div class="login-logo">⚡</div>
     <h1>Serbia RE Intelligence</h1>
     <p>Renewable Energy Competitive Landscape</p>
-    <input type="text" id="login-user" placeholder="Username" />
+    <input type="email" id="login-user" placeholder="Email" />
     <input type="password" id="login-pass" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()" />
     <button class="login-btn" onclick="doLogin()">Sign In</button>
     <div class="login-error" id="login-error">Invalid credentials. Try again.</div>
@@ -1545,26 +1546,35 @@ function getCoords(location) {
 }
 
 // ========== AUTH ==========
-const USERS = { "admin": "edit2024", "zora": "energy2024", "cwp": "market2026", "editor": "edit2024" };
-const EDIT_USERS = new Set(["admin", "editor"]);
+// Ulogovani korisnici koji mogu da menjaju podatke (email adrese iz Supabase Auth)
+const EDIT_USERS = new Set(["nikola.miladinovic@cwp.global"]);
 let currentUser = null;
 
-function doLogin() {
-  const u = document.getElementById('login-user').value.trim();
-  const p = document.getElementById('login-pass').value;
-  if (USERS[u] && USERS[u] === p) {
-    currentUser = u;
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    document.getElementById('add-proj-btn').style.display = EDIT_USERS.has(u) ? 'block' : 'none';
-    loadProjectsFromDB().then(initApp);
-  } else {
+async function doLogin() {
+  const email = document.getElementById('login-user').value.trim();
+  const password = document.getElementById('login-pass').value;
+  const btn = document.querySelector('.login-btn');
+  btn.textContent = 'Signing in...';
+  btn.disabled = true;
+  const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
+  btn.textContent = 'Sign In';
+  btn.disabled = false;
+  if (error || !data.session) {
     document.getElementById('login-error').style.display = 'block';
+    return;
   }
+  currentUser = data.user.email;
+  currentToken = data.session.access_token;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('add-proj-btn').style.display = EDIT_USERS.has(currentUser) ? 'block' : 'none';
+  loadProjectsFromDB().then(initApp);
 }
 
-function doLogout() {
+async function doLogout() {
+  await _supabase.auth.signOut();
   currentUser = null;
+  currentToken = SB_KEY;
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
 }
@@ -2361,7 +2371,7 @@ let _invAnalysesCache = null;
 async function loadInvAnalyses() {
   try {
     const res = await fetch(SB_URL + '/rest/v1/investor_notes?select=investor_name,analysis', {
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken }
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
@@ -2383,7 +2393,7 @@ async function saveInvAnalysis(investor, text) {
     const res = await fetch(SB_URL + '/rest/v1/investor_notes', {
       method: 'POST',
       headers: {
-        'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY,
+        'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken,
         'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates'
       },
       body: JSON.stringify({ investor_name: investor, analysis: text, updated_at: new Date().toISOString() })
@@ -4153,7 +4163,7 @@ function toggleAspectDone(asp) {
   p.permit_history._completed[asp] = !p.permit_history._completed[asp];
   fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
     method: 'PATCH',
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
     body: JSON.stringify({ permit_history: p.permit_history })
   });
   renderPermitHistory(p);
@@ -4634,7 +4644,7 @@ async function saveNotes() {
   try {
     await fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
       method: 'PATCH',
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({ notes: p.notes })
     });
   } catch(e) {}
@@ -4700,7 +4710,7 @@ async function saveOverviewEdit() {
   try {
     await fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
       method: 'PATCH',
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({
         status_overall: p.status_overall,
         probability: p.probability,
@@ -4900,11 +4910,13 @@ function renderProjModal() {
 // ===== SUPABASE CONFIG =====
 const SB_URL = 'https://iubmdftpbvxrexteasdn.supabase.co';
 const SB_KEY = 'sb_publishable_kNbRTDS1DKWRP429VH_z-g_864muQfo';
+const _supabase = window.supabase.createClient(SB_URL, SB_KEY);
+let currentToken = SB_KEY;
 
 async function loadProjectsFromDB() {
   try {
     const res = await fetch(SB_URL + '/rest/v1/projects?select=*&order=id', {
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY }
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken }
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
@@ -4959,7 +4971,7 @@ async function saveProjectToDB(p) {
       method: 'PATCH',
       headers: {
         'apikey': SB_KEY,
-        'Authorization': 'Bearer ' + SB_KEY,
+        'Authorization': 'Bearer ' + currentToken,
         'Content-Type': 'application/json',
         'Prefer': 'return=minimal'
       },
@@ -4993,7 +5005,7 @@ async function insertProjectToDB(p) {
       method: 'POST',
       headers: {
         'apikey': SB_KEY,
-        'Authorization': 'Bearer ' + SB_KEY,
+        'Authorization': 'Bearer ' + currentToken,
         'Content-Type': 'application/json',
         'Prefer': 'return=representation'
       },
