@@ -1982,9 +1982,12 @@ function renderMap() {
     // Calculate MW per district for choropleth
     let activeMapTech = 'All';
     let activeMapStatus = 'All';
+    window.activeMapTech = activeMapTech;
+    window.activeMapStatus = activeMapStatus;
 
     window.setMapStatus = function(status) {
       activeMapStatus = status;
+      window.activeMapStatus = status;
       document.querySelectorAll('.map-status-btn').forEach(function(b) {
         const isActive = b.dataset.status === status;
         b.style.background = isActive ? 'var(--accent)' : 'transparent';
@@ -2006,6 +2009,7 @@ function renderMap() {
       if (districtsVisible) renderDistrictLayer();
       else if (districtLayer) { leafletMap.removeLayer(districtLayer); districtLayer = null; if (mapLegend) { mapLegend.remove(); mapLegend = null; } }
       renderProjectMarkers();
+      renderProjectGeoLayer();
     };
     let districtsVisible = true;
     let projectMarkersLayer = null;
@@ -2156,12 +2160,14 @@ function renderMap() {
     // Global function for filter buttons
     window.setMapTech = function(tech) {
       activeMapTech = tech;
+      window.activeMapTech = tech;
       document.querySelectorAll('.tech-filter-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.tech === tech);
       });
       if (districtsVisible) renderDistrictLayer();
       else if (districtLayer) { leafletMap.removeLayer(districtLayer); districtLayer = null; if (mapLegend) { mapLegend.remove(); mapLegend = null; } }
       renderProjectMarkers();
+      renderProjectGeoLayer();
     };
 
     renderDistrictLayer();
@@ -2296,6 +2302,7 @@ function renderMap() {
     leafletMap.createPane('projectGeoPane');
     leafletMap.getPane('projectGeoPane').style.zIndex = 460;
     renderProjectGeoLayer();
+    toggleGridLayer();
   }
 
   if (window.L) {
@@ -3838,8 +3845,14 @@ function renderProjectGeoLayer() {
   const techColors = { Wind:'#3b9eff', Solar:'#f5c842', Hybrid:'#a855f7', BESS:'#f97316' };
 
   const layerGroup = L.layerGroup();
+  const _tech = window.activeMapTech || 'All';
+  const _status = window.activeMapStatus || 'All';
 
-  PROJECTS.forEach(function(p) {
+  PROJECTS.filter(function(p) {
+    const techOk = _tech === 'All' || p.technology.trim() === _tech;
+    const statusOk = _status === 'All' || p.status_overall === _status;
+    return techOk && statusOk;
+  }).forEach(function(p) {
     const geo = p.project_geo;
     if (!geo) return;
     const plantColor = techColors[p.technology.trim()] || '#00e5a0';
