@@ -1329,6 +1329,23 @@
     <div class="chart-title">MW per Window — breakdown by Permitting Phase</div>
     <div style="position:relative;height:280px"><canvas id="perm-chart-stack"></canvas></div>
   </div>
+
+  <!-- Građevinska dozvola — Elektrana -->
+  <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border)">
+    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text);margin-bottom:4px">Građevinska dozvola — Elektrana</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Prva građevinska dozvola za elektranu po projektu (iz Permitting → Elektrana)</div>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:start">
+      <!-- Stat kartice -->
+      <div style="display:flex;flex-direction:column;gap:12px;min-width:200px" id="gd-stats"></div>
+      <!-- Donut chart -->
+      <div class="chart-card" style="max-width:360px">
+        <div class="chart-title">Status — broj projekata</div>
+        <div style="position:relative;height:260px"><canvas id="perm-chart-gd"></canvas></div>
+      </div>
+    </div>
+    <!-- Lista odobrenih projekata -->
+    <div style="margin-top:20px" id="gd-approved-list"></div>
+  </div>
 </div>
 
 <!-- AI VIEW -->
@@ -2090,6 +2107,91 @@ function renderPermittingCharts() {
       }
     }
   });
+
+  // ── GRAĐEVINSKA DOZVOLA — ELEKTRANA ─────────────────────
+  // Pronalazi prvu "građevinsku dozvolu" unutar aspekta "Elektrana"
+  function getGDStatus(p) {
+    const ph = p.permit_history;
+    if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return 'no_data';
+    // Traži ključ koji sadrži "elektran" (case insensitive)
+    const key = Object.keys(ph).find(function(k) {
+      return k !== '_completed' && k.toLowerCase().replace(/[čćžšđ]/g, function(c) {
+        return {č:'c',ć:'c',ž:'z',š:'s',đ:'dj'}[c]||c;
+      }).includes('elektran');
+    });
+    if (!key) return 'no_data';
+    const procs = ph[key];
+    if (!Array.isArray(procs) || !procs.length) return 'no_data';
+    // Pronalazi prvu dozvolu čiji naziv sadrži "građevinsk" ili "gradjevinsk"
+    const norm = function(s) { return (s||'').toLowerCase().replace(/đ/g,'dj').replace(/č/g,'c').replace(/ć/g,'c').replace(/š/g,'s').replace(/ž/g,'z'); };
+    const gd = procs.find(function(e) { return norm(e.name).includes('gradjevinsk'); });
+    if (!gd) return 'no_data';
+    if (gd.date_approved) return 'approved';
+    const rejDates = gd.dates_rejected || (gd.date_rejected ? [gd.date_rejected] : []);
+    if (rejDates.length) return 'rejected';
+    if (gd.date_submitted) return 'submitted';
+    return 'pending';
+  }
+
+  // Primenjuje isti tech/law filter
+  const gdProjects = PROJECTS.filter(function(p) {
+    return (!_permLaw || p.law === _permLaw) && (!_permTech || p.technology.trim() === _permTech);
+  });
+
+  const gdBuckets = { approved:[], submitted:[], rejected:[], pending:[], no_data:[] };
+  gdProjects.forEach(function(p) { gdBuckets[getGDStatus(p)].push(p); });
+
+  // Stat kartice
+  const statEl = document.getElementById('gd-stats');
+  if (statEl) {
+    statEl.innerHTML = [
+      { label:'Odobrena', count: gdBuckets.approved.length,  color:'#22c55e' },
+      { label:'Podneta',  count: gdBuckets.submitted.length, color:'#f5c842' },
+      { label:'Odbijena', count: gdBuckets.rejected.length,  color:'#ef4444' },
+      { label:'U toku',   count: gdBuckets.pending.length,   color:'#94a3b8' },
+      { label:'Bez podataka', count: gdBuckets.no_data.length, color:'#1e2d47' }
+    ].map(function(s) {
+      return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:14px">'
+        +'<div style="width:12px;height:12px;border-radius:50%;background:'+s.color+';flex-shrink:0"></div>'
+        +'<div>'
+        +'<div style="font-size:22px;font-weight:700;color:var(--text)">'+s.count+'</div>'
+        +'<div style="font-size:12px;color:var(--muted)">'+s.label+'</div>'
+        +'</div></div>';
+    }).join('');
+  }
+
+  // Donut chart
+  makeChart('perm-chart-gd', {
+    type: 'doughnut',
+    data: {
+      labels: ['Odobrena','Podneta','Odbijena','U toku','Bez podataka'],
+      datasets: [{ data: [gdBuckets.approved.length, gdBuckets.submitted.length, gdBuckets.rejected.length, gdBuckets.pending.length, gdBuckets.no_data.length],
+        backgroundColor: ['#22c55e','#f5c842','#ef4444','#94a3b8','#1e2d47'], borderWidth: 2, borderColor: '#131929' }]
+    },
+    options: { ...CHART_DEFAULTS, cutout: '60%', plugins: { legend: { position:'bottom', labels:{ color:'#64748b', font:{size:11} } } } }
+  });
+
+  // Lista odobrenih projekata
+  const listEl = document.getElementById('gd-approved-list');
+  if (listEl) {
+    if (gdBuckets.approved.length === 0) {
+      listEl.innerHTML = '';
+    } else {
+      const techColors = { Wind:'#3b9eff', Solar:'#f5c842', Hybrid:'#a855f7', BESS:'#f97316' };
+      listEl.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Projekti sa odobrenom građevinskom dozvolom ('+gdBuckets.approved.length+')</div>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:8px">'
+        + gdBuckets.approved.map(function(p) {
+            const col = techColors[p.technology.trim()] || '#94a3b8';
+            return '<div style="background:var(--surface2);border:1px solid #22c55e33;border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="openProjSummary('+p.id+')">'
+              +'<div style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></div>'
+              +'<div style="font-size:12px;font-weight:600;color:var(--text)">'+p.name+'</div>'
+              +'<div style="font-size:11px;color:var(--muted)">'+p.capacity_mw+' MW</div>'
+              +'</div>';
+          }).join('')
+        +'</div>';
+    }
+  }
+  // ────────────────────────────────────────────────────────
 }
 
 // ========== MAP (Leaflet.js) ==========
