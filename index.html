@@ -2060,9 +2060,9 @@ function renderMap() {
         style: function(feature) {
           const mw = districtMW[feature.properties.name] || 0;
           return {
-            color: '#0a1628',
-            weight: 1.2,
-            opacity: 1,
+            color: '#3a6ea8',
+            weight: 2,
+            opacity: 0.9,
             fillColor: getMWColor(mw, minMW, maxMW),
             fillOpacity: 0.75
           };
@@ -2088,7 +2088,7 @@ function renderMap() {
           });
 
           layer.on('mouseout', function() {
-            this.setStyle({ fillColor: origColor, fillOpacity: 0.75, color: '#0a1628', weight: 1.2 });
+            this.setStyle({ fillColor: origColor, fillOpacity: 0.75, color: '#3a6ea8', weight: 2 });
             this.closeTooltip();
           });
         }
@@ -2153,7 +2153,7 @@ function renderMap() {
           radius: 7, color: color, fillColor: color, fillOpacity: 0.85,
           weight: 2, pane: 'projectGeoPane'
         });
-        marker.bindTooltip(`<b>${p.name}</b><br>${p.technology} · ${p.status}<br>${p.capacity_mw ? p.capacity_mw + ' MW' : ''}`, { sticky: true });
+        marker.bindTooltip(`<b>${p.name}</b><br>${p.technology} · ${p.status}<br>${p.capacity_mw ? p.capacity_mw + ' MW' : ''}${p.investor ? '<br>' + p.investor : ''}`, { sticky: true });
         projectMarkersLayer.addLayer(marker);
       });
       projectMarkersLayer.addTo(leafletMap);
@@ -2201,7 +2201,7 @@ function renderMap() {
           return {
             color: GRID_COLORS[v] || '#64748b',
             weight: GRID_WEIGHT[v] || 1.5,
-            opacity: 0.8,
+            opacity: 0.64,
             pane: 'gridPane'
           };
         },
@@ -3861,26 +3861,26 @@ function renderProjectGeoLayer() {
 
     (geo.plant||[]).forEach(function(pt, i) {
       const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:plantColor, fillColor:plantColor, fillOpacity:0.85, weight:2, pane:'projectGeoPane' });
-      m.bindTooltip('<b>'+p.name+'</b><br>Plant point #'+(i+1), { sticky:true, className:'district-tooltip' });
+      m.bindTooltip('<b>'+p.name+'</b>'+(p.capacity_mw?' · '+p.capacity_mw+' MW':'')+(p.investor?'<br>'+p.investor:''), { sticky:true, className:'district-tooltip' });
       m.on('click', function(){ openProjSummary(p.id); });
       layerGroup.addLayer(m);
     });
     (geo.ts||[]).forEach(function(pt, i) {
       const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:'#f97316', fillColor:'#f97316', fillOpacity:0.85, weight:2, pane:'projectGeoPane' });
-      m.bindTooltip('<b>'+p.name+'</b><br>TS #'+(i+1), { sticky:true, className:'district-tooltip' });
+      m.bindTooltip('<b>'+p.name+'</b> · TS'+(p.capacity_mw?' · '+p.capacity_mw+' MW':'')+(p.investor?'<br>'+p.investor:''), { sticky:true, className:'district-tooltip' });
       m.on('click', function(){ openProjSummary(p.id); });
       layerGroup.addLayer(m);
     });
     (geo.prp||[]).forEach(function(pt, i) {
       const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:'#a855f7', fillColor:'#a855f7', fillOpacity:0.85, weight:2, pane:'projectGeoPane' });
-      m.bindTooltip('<b>'+p.name+'</b><br>PRP #'+(i+1), { sticky:true, className:'district-tooltip' });
+      m.bindTooltip('<b>'+p.name+'</b> · PRP'+(p.capacity_mw?' · '+p.capacity_mw+' MW':'')+(p.investor?'<br>'+p.investor:''), { sticky:true, className:'district-tooltip' });
       m.on('click', function(){ openProjSummary(p.id); });
       layerGroup.addLayer(m);
     });
     (geo.lines||[]).forEach(function(line) {
       if (!line.pts || line.pts.length < 2) return;
       const l = L.polyline(line.pts, { color:'#f59e0b', weight:2.5, pane:'projectGeoPane' });
-      if (line.label) l.bindTooltip(p.name+' · '+line.label, { sticky:true, className:'district-tooltip' });
+      l.bindTooltip('<b>'+p.name+'</b>'+(line.label?' · '+line.label:'')+(p.capacity_mw?' · '+p.capacity_mw+' MW':'')+(p.investor?'<br>'+p.investor:''), { sticky:true, className:'district-tooltip' });
       layerGroup.addLayer(l);
     });
   });
