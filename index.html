@@ -882,6 +882,23 @@
     overflow: hidden;
     position: relative;
   }
+  .map-container:fullscreen,
+  .map-container:-webkit-full-screen,
+  .map-container:-moz-full-screen {
+    border-radius: 0;
+    border: none;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .map-container:fullscreen #leaflet-map,
+  .map-container:-webkit-full-screen #leaflet-map,
+  .map-container:-moz-full-screen #leaflet-map {
+    flex: 1;
+    height: auto !important;
+    border-radius: 0 !important;
+  }
 
   .map-header {
     padding: 18px 22px;
@@ -1246,6 +1263,8 @@
             <button id="grid-btn-220000" onclick="toggleVoltage('220000')" style="padding:5px 10px;border-radius:6px;border:1px solid #22c55e44;background:#22c55e22;color:#22c55e;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:all .2s">220 kV</button>
             <button id="grid-btn-110000" onclick="toggleVoltage('110000')" style="padding:5px 10px;border-radius:6px;border:1px solid #94a3b844;background:#94a3b822;color:#94a3b8;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:all .2s">110 kV</button>
           </div>
+          <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
+          <button id="map-fullscreen-btn" onclick="toggleMapFullscreen()" title="Full screen" style="padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer;transition:all .2s;line-height:1" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">⛶</button>
         </div>
       </div>
       <div id="leaflet-map" style="height:560px;width:100%;border-radius:0 0 14px 14px;"></div>
@@ -3888,6 +3907,31 @@ function renderProjectGeoLayer() {
   projectGeoLayer = layerGroup;
   layerGroup.addTo(leafletMap);
 }
+
+window.toggleMapFullscreen = function() {
+  const container = document.querySelector('.map-container');
+  const btn = document.getElementById('map-fullscreen-btn');
+  if (!document.fullscreenElement) {
+    (container.requestFullscreen || container.webkitRequestFullscreen || container.mozRequestFullScreen).call(container).then(function() {
+      btn.textContent = '✕';
+      btn.title = 'Exit full screen';
+      if (leafletMap) leafletMap.invalidateSize();
+    }).catch(function(){});
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen).call(document).then(function() {
+      btn.textContent = '⛶';
+      btn.title = 'Full screen';
+      if (leafletMap) leafletMap.invalidateSize();
+    }).catch(function(){});
+  }
+};
+
+document.addEventListener('fullscreenchange', function() {
+  if (leafletMap) setTimeout(function(){ leafletMap.invalidateSize(); }, 100);
+});
+document.addEventListener('webkitfullscreenchange', function() {
+  if (leafletMap) setTimeout(function(){ leafletMap.invalidateSize(); }, 100);
+});
 
 window.goToProjectOnMap = function(id) {
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === id; });
