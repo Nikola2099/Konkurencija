@@ -2079,9 +2079,9 @@ function renderMap() {
         style: function(feature) {
           const mw = districtMW[feature.properties.name] || 0;
           return {
-            color: 'transparent',
-            weight: 0,
-            opacity: 0,
+            color: '#0a1628',
+            weight: 1.2,
+            opacity: 1,
             fillColor: getMWColor(mw, minMW, maxMW),
             fillOpacity: 0.75
           };
@@ -2107,7 +2107,7 @@ function renderMap() {
           });
 
           layer.on('mouseout', function() {
-            this.setStyle({ fillColor: origColor, fillOpacity: 0.75, color: 'transparent', weight: 0 });
+            this.setStyle({ fillColor: origColor, fillOpacity: 0.75, color: '#0a1628', weight: 1.2 });
             this.closeTooltip();
           });
         }
@@ -2196,61 +2196,6 @@ function renderMap() {
     // ── PRENOSNA MREŽA (grid.geojson) ──────────────────────
     leafletMap.createPane('gridPane');
     leafletMap.getPane('gridPane').style.zIndex = 450;
-
-    // ── GRANICA SRBIJE (permanentni sloj) ──────────────────
-    (function() {
-      // Nalazi ivice koje se pojavljuju samo jednom = spoljna granica
-      const PREC = 5;
-      const rnd = v => parseFloat(v.toFixed(PREC));
-      const ptK = p => rnd(p[0]) + ',' + rnd(p[1]);
-      const edgeK = (a, b) => { const ka=ptK(a), kb=ptK(b); return ka<kb?ka+'|'+kb:kb+'|'+ka; };
-      const cnt = {}, pts = {};
-      districtsGeoJSON.features.forEach(function(f) {
-        const polys = f.geometry.type==='Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
-        polys.forEach(function(poly) { poly.forEach(function(ring) {
-          for (var i=0;i<ring.length-1;i++) {
-            const k = edgeK(ring[i], ring[i+1]);
-            cnt[k] = (cnt[k]||0)+1;
-            pts[k] = [ring[i], ring[i+1]];
-          }
-        }); });
-      });
-      // Gradi kontinuirane linije od ivica
-      const outerSegs = Object.keys(cnt).filter(function(k){ return cnt[k]===1; }).map(function(k){ return pts[k]; });
-      const adj = {};
-      outerSegs.forEach(function(s) {
-        const k0=ptK(s[0]), k1=ptK(s[1]);
-        (adj[k0]=adj[k0]||[]).push({k:k1, c:s[1]});
-        (adj[k1]=adj[k1]||[]).push({k:k0, c:s[0]});
-      });
-      const visited = new Set(), chains = [];
-      outerSegs.forEach(function(s) {
-        const ek = edgeK(s[0],s[1]);
-        if (visited.has(ek)) return;
-        visited.add(ek);
-        const chain = [s[0], s[1]];
-        let cur = s[1];
-        let go = true;
-        while(go) {
-          go = false;
-          (adj[ptK(cur)]||[]).forEach(function(n) {
-            if (go) return;
-            const nek = edgeK(cur, n.c);
-            if (!visited.has(nek)) { visited.add(nek); chain.push(n.c); cur=n.c; go=true; }
-          });
-        }
-        chains.push(chain);
-      });
-      // Iscrtava granicu (konvertuje [lng,lat] → [lat,lng])
-      const borderGroup = L.featureGroup();
-      chains.forEach(function(chain) {
-        L.polyline(chain.map(function(p){ return [p[1],p[0]]; }), {
-          color: '#4a8fd4', weight: 2.5, opacity: 0.9, lineJoin: 'round', lineCap: 'round'
-        }).addTo(borderGroup);
-      });
-      borderGroup.addTo(leafletMap);
-    })();
-    // ───────────────────────────────────────────────────────
 
     let gridLayer = null;
     let gridVisible = false;
