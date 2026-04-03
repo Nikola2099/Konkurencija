@@ -4750,95 +4750,7 @@ async function saveEditProcess(asp, idx) {
 
 
 
-function cancelProcessForm() {
-  document.getElementById('psm-process-add-form').style.display = 'none';
-  _editProcessIdx = null; _editProcessAsp = null;
-  document.getElementById('process-form-title').textContent = 'Add Process';
-  document.getElementById('process-save-btn').textContent = 'Add Process';
-  document.getElementById('process-save-btn').onclick = saveProcessEntry;
-}
 
-function showAddProcessForm(asp) {
-  _editProcessIdx = null; _editProcessAsp = asp;
-  document.getElementById('process-form-title').textContent = 'Add Process';
-  document.getElementById('process-save-btn').textContent = 'Add Process';
-  document.getElementById('process-save-btn').onclick = saveProcessEntry;
-  document.getElementById('process-name').value = '';
-  document.getElementById('process-date-submitted').value = '';
-  document.getElementById('process-date-approved').value = '';
-  document.getElementById('process-date-rejected').value = '';
-  document.getElementById('process-case').value = '';
-  document.getElementById('process-desc').value = '';
-  document.getElementById('psm-process-add-form').dataset.aspect = asp;
-  document.getElementById('psm-process-add-form').style.display = 'block';
-}
-
-function showEditProcessForm(asp, idx) {
-  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
-  const e = (p.permit_history[asp]||[])[idx];
-  if (!e) return;
-  _editProcessIdx = idx; _editProcessAsp = asp;
-  document.getElementById('process-form-title').textContent = 'Edit Process';
-  document.getElementById('process-save-btn').textContent = 'Save Changes';
-  document.getElementById('process-save-btn').onclick = saveProcessEdit;
-  document.getElementById('process-name').value = e.name || '';
-  document.getElementById('process-date-submitted').value = e.date_submitted || '';
-  document.getElementById('process-date-approved').value = e.date_approved || '';
-  document.getElementById('process-date-rejected').value = e.date_rejected || '';
-  document.getElementById('process-case').value = e.case_num || '';
-  document.getElementById('process-desc').value = e.desc || '';
-  document.getElementById('psm-process-add-form').dataset.aspect = asp;
-  document.getElementById('psm-process-add-form').style.display = 'block';
-}
-
-async function saveProcessEntry() {
-  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
-  if (!p) return;
-  const asp = document.getElementById('psm-process-add-form').dataset.aspect || _editProcessAsp;
-  const name = document.getElementById('process-name').value.trim();
-  if (!name) return;
-  if (!p.permit_history[asp]) p.permit_history[asp] = [];
-  p.permit_history[asp].push({
-    name: name,
-    date_submitted: document.getElementById('process-date-submitted').value.trim(),
-    date_approved: document.getElementById('process-date-approved').value.trim(),
-    date_rejected: document.getElementById('process-date-rejected').value.trim(),
-    case_num: document.getElementById('process-case').value.trim(),
-    desc: document.getElementById('process-desc').value.trim()
-  });
-  cancelProcessForm();
-  try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({permit_history:p.permit_history})
-    });
-  } catch(e) {}
-  renderPermitHistory(p);
-}
-
-async function saveProcessEdit() {
-  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
-  if (!p) return;
-  const asp = _editProcessAsp;
-  p.permit_history[asp][_editProcessIdx] = {
-    name: document.getElementById('process-name').value.trim(),
-    date_submitted: document.getElementById('process-date-submitted').value.trim(),
-    date_approved: document.getElementById('process-date-approved').value.trim(),
-    date_rejected: document.getElementById('process-date-rejected').value.trim(),
-    case_num: document.getElementById('process-case').value.trim(),
-    desc: document.getElementById('process-desc').value.trim()
-  };
-  cancelProcessForm();
-  try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({permit_history:p.permit_history})
-    });
-  } catch(e) {}
-  renderPermitHistory(p);
-}
 
 
 let _editPermitAsp = null;
@@ -5962,42 +5874,6 @@ function initApp() {
           <div style="display:flex;gap:8px">
             <button onclick="document.getElementById('psm-new-aspect-form').style.display='none'" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Otkaži</button>
             <button onclick="addNewAspect()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Dodaj izabrane</button>
-          </div>
-        </div>
-        <!-- Process form for custom aspects -->
-        <div id="psm-process-add-form" style="display:none;background:var(--surface2);border-radius:12px;padding:16px;margin-top:10px">
-          <div id="process-form-title" style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Add Process</div>
-          <div style="margin-bottom:10px">
-            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Naziv procesa</div>
-            <input id="process-name" type="text" placeholder="npr. Lokacijski uslovi, Građevinska dozvola..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-            <div>
-              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Datum podnošenja</div>
-              <input id="process-date-submitted" type="text" placeholder="dd/mm/yyyy" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
-            </div>
-            <div>
-              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Datum odobravanja</div>
-              <input id="process-date-approved" type="text" placeholder="dd/mm/yyyy" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-            <div>
-              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Datum odbijanja</div>
-              <input id="process-date-rejected" type="text" placeholder="dd/mm/yyyy" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
-            </div>
-            <div>
-              <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Broj predmeta</div>
-              <input id="process-case" type="text" placeholder="npr. 350-123/2025" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
-            </div>
-          </div>
-          <div style="margin-bottom:10px">
-            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Napomena</div>
-            <input id="process-desc" type="text" placeholder="Opcionalna napomena..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
-          </div>
-          <div style="display:flex;gap:8px">
-            <button onclick="cancelProcessForm()" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>
-            <button onclick="saveProcessEntry()" id="process-save-btn" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Add Process</button>
           </div>
         </div>
       </div>
