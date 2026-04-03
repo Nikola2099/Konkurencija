@@ -2138,7 +2138,7 @@ function renderMap() {
       const isTechFiltered = activeMapTech !== 'All';
       const isStatusFiltered = activeMapStatus !== 'All';
       if (!isTechFiltered && !isStatusFiltered) return;
-      const filtered = allProjects.filter(p => {
+      const filtered = PROJECTS.filter(p => {
         const techOk = !isTechFiltered || p.technology === activeMapTech;
         const statusOk = !isStatusFiltered || p.status === activeMapStatus;
         return techOk && statusOk;
