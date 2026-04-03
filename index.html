@@ -4471,7 +4471,12 @@ function renderPermitHistory(p) {
         ? '<div id="form_'+aid+'" style="display:none;background:var(--surface2);border-radius:10px;padding:14px;margin-top:10px">'
           +'<div id="formtitle_'+aid+'" style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px">Add Process</div>'
           +'<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Naziv procesa</div>'
-          +'<input id="pname_'+aid+'" type="text" placeholder="npr. Lokacijski uslovi..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+          +'<select id="pname_'+aid+'" onchange="onProcessNameChange(\''+aid+'\')" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box">'
+          +'<option value="">— Izaberi —</option>'
+          +PROCESS_OPTIONS.map(function(o){ return '<option value="'+(o==='Ostalo...'?'__custom__':o)+'">'+o+'</option>'; }).join('')
+          +'</select>'
+          +'<input id="pname_custom_'+aid+'" type="text" placeholder="Upiši naziv procesa..." style="display:none;width:100%;margin-top:6px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box">'
+          +'</div>'
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
           +'<div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Datum podnošenja</div><input id="psub_'+aid+'" type="text" placeholder="dd/mm/yyyy" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
           +'<div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Datum odobravanja</div><input id="papp_'+aid+'" type="text" placeholder="dd/mm/yyyy" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
@@ -4648,6 +4653,14 @@ function openInlineForm(aid) {
   document.getElementById('form_'+aid).style.display = 'block';
 }
 
+function onProcessNameChange(aid) {
+  const sel = document.getElementById('pname_'+aid);
+  const custom = document.getElementById('pname_custom_'+aid);
+  if (!sel || !custom) return;
+  custom.style.display = sel.value === '__custom__' ? 'block' : 'none';
+  if (sel.value === '__custom__') custom.focus();
+}
+
 function cancelInlineForm(aid) {
   document.getElementById('form_'+aid).style.display = 'none';
 }
@@ -4664,7 +4677,10 @@ async function saveInlineProcess(asp) {
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
   if (!p) return;
   const aid = 'asp_'+asp.replace(/[^a-zA-Z0-9]/g,'_');
-  const name = document.getElementById('pname_'+aid).value.trim();
+  const sel = document.getElementById('pname_'+aid);
+  const name = sel.value === '__custom__'
+    ? (document.getElementById('pname_custom_'+aid)||{value:''}).value.trim()
+    : sel.value.trim();
   if (!name) return;
   const rejInputs = Array.from(document.getElementById('prej_list_'+aid).querySelectorAll('input'));
   const dates_rejected = rejInputs.map(function(i){ return i.value.trim(); }).filter(Boolean);
@@ -4718,7 +4734,15 @@ function showEditProcessForm(asp, idx) {
   document.getElementById('formtitle_'+aid).textContent = 'Edit Process';
   document.getElementById('fsave_'+aid).textContent = 'Save Changes';
   document.getElementById('fsave_'+aid).onclick = function(){ saveEditProcess(asp, idx); };
-  document.getElementById('pname_'+aid).value = e.name || '';
+  // Populate process name: use select if name is in PROCESS_OPTIONS, else custom input
+  const nameSel = document.getElementById('pname_'+aid);
+  const nameCustom = document.getElementById('pname_custom_'+aid);
+  const eName = e.name || '';
+  if (nameSel) {
+    const isKnown = PROCESS_OPTIONS.filter(function(o){ return o !== 'Ostalo...'; }).includes(eName);
+    nameSel.value = isKnown ? eName : '__custom__';
+    if (nameCustom) { nameCustom.style.display = isKnown ? 'none' : 'block'; nameCustom.value = isKnown ? '' : eName; }
+  }
   document.getElementById('psub_'+aid).value = e.date_submitted || '';
   document.getElementById('papp_'+aid).value = e.date_approved || '';
   document.getElementById('pcase_'+aid).value = e.case_num || '';
@@ -4743,7 +4767,7 @@ async function saveEditProcess(asp, idx) {
   const rejInputs = Array.from(document.getElementById('prej_list_'+aid).querySelectorAll('input'));
   const dates_rejected = rejInputs.map(function(i){ return i.value.trim(); }).filter(Boolean);
   p.permit_history[asp][idx] = {
-    name:           document.getElementById('pname_'+aid).value.trim(),
+    name:           (function(){ var s=document.getElementById('pname_'+aid); return s.value==='__custom__' ? (document.getElementById('pname_custom_'+aid)||{value:''}).value.trim() : s.value.trim(); })(),
     date_submitted: document.getElementById('psub_'+aid).value.trim(),
     date_approved:  document.getElementById('papp_'+aid).value.trim(),
     dates_rejected: dates_rejected,
@@ -4867,6 +4891,18 @@ async function deletePermitEntry(asp, idx) {
 }
 
 const ASPECT_OPTIONS = ['Elektrana', 'TS', 'PRP', 'OHL', 'Roads'];
+const PROCESS_OPTIONS = [
+  'Lokacijski uslovi',
+  'Izmena lokacijskih uslova',
+  'Građevinska dozvola',
+  'Izmena građevinske dozvole',
+  'Upotrebna dozvola',
+  'Priključni uslovi',
+  'Saglasnost EMS-a',
+  'Saglasnost EPS-a',
+  'Tehnički pregled',
+  'Ostalo...'
+];
 
 function openNewAspectForm() {
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
