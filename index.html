@@ -2208,24 +2208,34 @@ function renderPermittingCharts() {
     });
   }
 
-  // Lista odobrenih projekata
+  // Lista projekata po GD statusu
   const listEl = document.getElementById('gd-approved-list');
   if (listEl) {
-    if (gdBuckets.approved.length === 0) {
+    const techColors = { Wind:'#3b9eff', Solar:'#f5c842', Hybrid:'#a855f7', BESS:'#f97316' };
+    const gdSections = [
+      { key:'approved',  label:'Odobrena GD', color:'#22c55e', border:'#22c55e33' },
+      { key:'submitted', label:'Podneta GD',   color:'#f5c842', border:'#f5c84233' },
+      { key:'rejected',  label:'Odbijena GD',  color:'#ef4444', border:'#ef444433' },
+      { key:'pending',   label:'U toku (GD)',  color:'#94a3b8', border:'#94a3b833' }
+    ];
+    const sections = gdSections.filter(function(s){ return gdBuckets[s.key].length > 0; });
+    if (sections.length === 0) {
       listEl.innerHTML = '';
     } else {
-      const techColors = { Wind:'#3b9eff', Solar:'#f5c842', Hybrid:'#a855f7', BESS:'#f97316' };
-      listEl.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Projekti sa odobrenom građevinskom dozvolom ('+gdBuckets.approved.length+')</div>'
-        +'<div style="display:flex;flex-wrap:wrap;gap:8px">'
-        + gdBuckets.approved.map(function(p) {
-            const col = techColors[p.technology.trim()] || '#94a3b8';
-            return '<div style="background:var(--surface2);border:1px solid #22c55e33;border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="openProjSummary('+p.id+')">'
-              +'<div style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></div>'
-              +'<div style="font-size:12px;font-weight:600;color:var(--text)">'+p.name+'</div>'
-              +'<div style="font-size:11px;color:var(--muted)">'+p.capacity_mw+' MW</div>'
-              +'</div>';
-          }).join('')
-        +'</div>';
+      listEl.innerHTML = sections.map(function(s) {
+        return '<div style="margin-bottom:14px">'
+          +'<div style="font-size:12px;font-weight:600;color:'+s.color+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+s.label+' ('+gdBuckets[s.key].length+')</div>'
+          +'<div style="display:flex;flex-wrap:wrap;gap:8px">'
+          + gdBuckets[s.key].map(function(p) {
+              const col = techColors[p.technology.trim()] || '#94a3b8';
+              return '<div style="background:var(--surface2);border:1px solid '+s.border+';border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="openProjSummary('+p.id+')">'
+                +'<div style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></div>'
+                +'<div style="font-size:12px;font-weight:600;color:var(--text)">'+p.name+'</div>'
+                +'<div style="font-size:11px;color:var(--muted)">'+p.capacity_mw+' MW</div>'
+                +'</div>';
+            }).join('')
+          +'</div></div>';
+      }).join('');
     }
   }
   // ────────────────────────────────────────────────────────
