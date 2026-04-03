@@ -4527,9 +4527,11 @@ function renderPermitHistory(p) {
       +'<div id="content_'+aid+'" style="display:none;padding:12px 14px;border-top:1px solid var(--border)">'
         +(isAdmin && isCustom
           ? '<div id="rename_'+aid+'" style="display:none;background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:12px">'
-            +'<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Novo ime aspekta</div>'
+            +'<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Promeni naziv aspekta</div>'
             +'<div style="display:flex;gap:8px">'
-            +'<input id="rename_input_'+aid+'" type="text" value="'+asp.replace(/"/g,'&quot;')+'" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none">'
+            +'<select id="rename_input_'+aid+'" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none">'
+            +ASPECT_OPTIONS.map(function(o){ return '<option value="'+o+'"'+(o===asp?' selected':'')+'>'+o+'</option>'; }).join('')
+            +'</select>'
             +'<button onclick="saveRenameAspect(\''+aspSafe+'\')" style="background:var(--accent);border:none;border-radius:7px;padding:7px 14px;color:#0b0f1a;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">Sačuvaj</button>'
             +'<button onclick="document.getElementById(\'rename_'+aid+'\').style.display=\'none\'" style="background:transparent;border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--muted);font-size:12px;cursor:pointer">Otkaži</button>'
             +'</div></div>'
@@ -4931,7 +4933,7 @@ function openRenameAspect(asp) {
   }
   renameDiv.style.display = 'block';
   const input = document.getElementById('rename_input_'+aid);
-  if (input) { input.focus(); input.select(); }
+  if (input) input.focus();
 }
 
 async function saveRenameAspect(oldAsp) {
