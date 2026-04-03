@@ -4531,7 +4531,7 @@ function renderPermitHistory(p) {
 
   document.getElementById('psm-aspects-list').innerHTML = aspectBlocks;
   document.getElementById('psm-permit-btns').innerHTML = isAdmin
-    ? '<button onclick="document.getElementById(\'psm-new-aspect-form\').style.display=\'block\'" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:7px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">+ New Aspect</button>'
+    ? '<button onclick="openNewAspectForm()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:7px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">+ New Aspect</button>'
     : '';
 }
 
@@ -4942,15 +4942,50 @@ async function deletePermitEntry(asp, idx) {
   renderPermitHistory(p);
 }
 
+const ASPECT_OPTIONS = ['Elektrana', 'TS', 'PRP', 'OHL', 'Roads'];
+
+function openNewAspectForm() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  const existing = p && p.permit_history ? Object.keys(p.permit_history).filter(function(k){ return k !== '_completed'; }) : [];
+  const chips = document.getElementById('psm-aspect-chips');
+  if (chips) {
+    chips.innerHTML = ASPECT_OPTIONS.map(function(opt) {
+      const already = existing.includes(opt);
+      return '<button type="button" data-aspect="'+opt+'" onclick="toggleAspectChip(this)" '
+        + 'style="padding:7px 16px;border-radius:20px;border:1px solid '+(already?'#22c55e44':'var(--border)')+';'
+        + 'background:'+(already?'#22c55e18':'transparent')+';'
+        + 'color:'+(already?'#22c55e':'var(--muted)')+';'
+        + 'font-family:\'DM Sans\',sans-serif;font-size:12px;cursor:'+(already?'default':'pointer')+';'
+        + 'transition:all .15s" '
+        + (already ? 'disabled title="Već dodat"' : '') + '>'
+        + opt + (already ? ' ✓' : '')
+        + '</button>';
+    }).join('');
+  }
+  document.getElementById('psm-new-aspect-form').style.display = 'block';
+}
+
+window.toggleAspectChip = function(btn) {
+  if (btn.disabled) return;
+  const active = btn.dataset.selected === '1';
+  btn.dataset.selected = active ? '' : '1';
+  btn.style.background = active ? 'transparent' : 'rgba(0,229,160,.15)';
+  btn.style.borderColor = active ? 'var(--border)' : 'var(--accent)';
+  btn.style.color = active ? 'var(--muted)' : 'var(--accent)';
+};
+
 async function addNewAspect() {
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
   if (!p) return;
-  const name = document.getElementById('new-aspect-name').value.trim();
-  if (!name) return;
-  if (!p.permit_history[name]) p.permit_history[name] = [];
-  document.getElementById('new-aspect-name').value = '';
+  const selected = Array.from(document.querySelectorAll('#psm-aspect-chips button[data-selected="1"]'))
+    .map(function(b){ return b.dataset.aspect; });
+  if (!selected.length) return;
+  let lastAdded = null;
+  selected.forEach(function(name) {
+    if (!p.permit_history[name]) { p.permit_history[name] = []; lastAdded = name; }
+  });
   document.getElementById('psm-new-aspect-form').style.display = 'none';
-  _activeAspect = name;
+  if (lastAdded) _activeAspect = lastAdded;
   try {
     await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
       method:'PATCH',
@@ -5921,11 +5956,12 @@ function initApp() {
         <div id="psm-permit-btns"></div>
         <!-- Add custom aspect form -->
         <div id="psm-new-aspect-form" style="display:none;background:var(--surface2);border-radius:12px;padding:16px;margin-top:10px">
-          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px">New Aspect</div>
-          <input id="new-aspect-name" type="text" placeholder="e.g. Kablovska trasa, Priključni vod..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box;margin-bottom:10px">
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px">Dodaj aspekte</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Izaberi jedan ili više aspekata</div>
+          <div id="psm-aspect-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
           <div style="display:flex;gap:8px">
-            <button onclick="document.getElementById('psm-new-aspect-form').style.display='none'" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>
-            <button onclick="addNewAspect()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Add Aspect</button>
+            <button onclick="document.getElementById('psm-new-aspect-form').style.display='none'" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Otkaži</button>
+            <button onclick="addNewAspect()" style="flex:1;background:var(--accent);border:none;border-radius:8px;padding:8px;color:#0b0f1a;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer">Dodaj izabrane</button>
           </div>
         </div>
         <!-- Process form for custom aspects -->
