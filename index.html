@@ -4520,10 +4520,20 @@ function renderPermitHistory(p) {
         +'</div>'
         +'<div style="display:flex;gap:8px;align-items:center">'
           +(entries.length?'<div style="font-size:11px;color:var(--muted)">'+entries.length+(isCustom?' process'+(entries.length===1?'':'es'):(entries.length===1?' entry':' entries'))+'</div>':'')
+          +(isAdmin && isCustom?'<button onclick="event.stopPropagation();openRenameAspect(\''+aspSafe+'\')" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'#475569\'" title="Preimenuj aspekt">✏️</button>':'')
           +(isAdmin && isCustom?'<button onclick="event.stopPropagation();deleteAspect(\''+aspSafe+'\',event)" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕</button>':'')
         +'</div>'
       +'</div>'
       +'<div id="content_'+aid+'" style="display:none;padding:12px 14px;border-top:1px solid var(--border)">'
+        +(isAdmin && isCustom
+          ? '<div id="rename_'+aid+'" style="display:none;background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:12px">'
+            +'<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Novo ime aspekta</div>'
+            +'<div style="display:flex;gap:8px">'
+            +'<input id="rename_input_'+aid+'" type="text" value="'+asp.replace(/"/g,'&quot;')+'" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none">'
+            +'<button onclick="saveRenameAspect(\''+aspSafe+'\')" style="background:var(--accent);border:none;border-radius:7px;padding:7px 14px;color:#0b0f1a;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">Sačuvaj</button>'
+            +'<button onclick="document.getElementById(\'rename_'+aid+'\').style.display=\'none\'" style="background:transparent;border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--muted);font-size:12px;cursor:pointer">Otkaži</button>'
+            +'</div></div>'
+          : '')
         + rows + addBtn + inlineForm
       +'</div>'
     +'</div>';
@@ -4898,6 +4908,47 @@ async function addNewAspect() {
   });
   document.getElementById('psm-new-aspect-form').style.display = 'none';
   if (lastAdded) _activeAspect = lastAdded;
+  try {
+    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
+      method:'PATCH',
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
+      body:JSON.stringify({permit_history:p.permit_history})
+    });
+  } catch(e) {}
+  renderPermitHistory(p);
+}
+
+function openRenameAspect(asp) {
+  const aid = 'asp_'+asp.replace(/[^a-zA-Z0-9]/g,'_');
+  const content = document.getElementById('content_'+aid);
+  const renameDiv = document.getElementById('rename_'+aid);
+  if (!renameDiv) return;
+  // Expand the aspect if closed
+  if (content.style.display === 'none') {
+    content.style.display = 'block';
+    const chev = document.getElementById('chev_'+aid);
+    if (chev) chev.textContent = '▼';
+  }
+  renameDiv.style.display = 'block';
+  const input = document.getElementById('rename_input_'+aid);
+  if (input) { input.focus(); input.select(); }
+}
+
+async function saveRenameAspect(oldAsp) {
+  const aid = 'asp_'+oldAsp.replace(/[^a-zA-Z0-9]/g,'_');
+  const input = document.getElementById('rename_input_'+aid);
+  if (!input) return;
+  const newAsp = input.value.trim();
+  if (!newAsp || newAsp === oldAsp) {
+    document.getElementById('rename_'+aid).style.display = 'none';
+    return;
+  }
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  if (p.permit_history[newAsp]) { alert('Aspekt "'+newAsp+'" već postoji.'); return; }
+  // Rename key: copy data under new key, delete old
+  p.permit_history[newAsp] = p.permit_history[oldAsp];
+  delete p.permit_history[oldAsp];
   try {
     await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
       method:'PATCH',
