@@ -4873,18 +4873,19 @@ function openNewAspectForm() {
   const existing = p && p.permit_history ? Object.keys(p.permit_history).filter(function(k){ return k !== '_completed'; }) : [];
   const chips = document.getElementById('psm-aspect-chips');
   if (chips) {
-    chips.innerHTML = ASPECT_OPTIONS.map(function(opt) {
-      const already = existing.includes(opt);
-      return '<button type="button" data-aspect="'+opt+'" onclick="toggleAspectChip(this)" '
-        + 'style="padding:7px 16px;border-radius:20px;border:1px solid '+(already?'#22c55e44':'var(--border)')+';'
-        + 'background:'+(already?'#22c55e18':'transparent')+';'
-        + 'color:'+(already?'#22c55e':'var(--muted)')+';'
-        + 'font-family:\'DM Sans\',sans-serif;font-size:12px;cursor:'+(already?'default':'pointer')+';'
-        + 'transition:all .15s" '
-        + (already ? 'disabled title="Već dodat"' : '') + '>'
-        + opt + (already ? ' ✓' : '')
-        + '</button>';
-    }).join('');
+    const available = ASPECT_OPTIONS.filter(function(opt){ return !existing.includes(opt); });
+    if (available.length === 0) {
+      chips.innerHTML = '<div style="font-size:12px;color:var(--muted);font-style:italic">Svi aspekti su već dodati.</div>';
+    } else {
+      chips.innerHTML = available.map(function(opt) {
+        return '<button type="button" data-aspect="'+opt+'" onclick="toggleAspectChip(this)" '
+          + 'style="padding:7px 16px;border-radius:20px;border:1px solid var(--border);'
+          + 'background:transparent;color:var(--muted);'
+          + 'font-family:\'DM Sans\',sans-serif;font-size:12px;cursor:pointer;transition:all .15s">'
+          + opt
+          + '</button>';
+      }).join('');
+    }
   }
   document.getElementById('psm-new-aspect-form').style.display = 'block';
 }
