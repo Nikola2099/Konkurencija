@@ -874,6 +874,14 @@
 
   /* MAP VIEW */
   #map-view { padding: 32px; }
+  .perm-law-btn, .perm-tech-btn {
+    padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); font-family: 'DM Sans', sans-serif;
+    font-size: 12px; cursor: pointer; transition: all .2s;
+  }
+  .perm-law-btn.active, .perm-tech-btn.active {
+    background: var(--accent); color: #0b0f1a; border-color: var(--accent); font-weight: 600;
+  }
 
   .map-container {
     background: var(--surface);
@@ -1049,6 +1057,7 @@
       <button class="nav-btn" onclick="showView('table')">Table</button>
       <button class="nav-btn" onclick="showView('investors')">Investors</button>
       <button class="nav-btn" onclick="showView('map')">Map</button>
+      <button class="nav-btn" onclick="showView('permitting')">Permitting</button>
       <button class="nav-btn" onclick="showView('ai')" style="color:var(--accent)">✦ Ask AI</button>
     </nav>
     <div style="display:flex;align-items:center;gap:8px">
@@ -1269,6 +1278,56 @@
       </div>
       <div id="leaflet-map" style="height:560px;width:100%;border-radius:0 0 14px 14px;"></div>
     </div>
+  </div>
+</div>
+
+<!-- PERMITTING VIEW -->
+<div class="view" id="permitting-view" style="padding:32px">
+  <div class="section-title">Permitting Analysis</div>
+  <div class="section-sub">Distribution of projects by permitting phase — capacity and count</div>
+
+  <!-- Filters -->
+  <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;margin:20px 0 28px">
+    <div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px">Regulatory Window</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="perm-law-btns">
+        <button class="perm-law-btn active" data-law="" onclick="setPermLaw('')">All</button>
+        <button class="perm-law-btn" data-law="Old law" onclick="setPermLaw('Old law')">Old Law</button>
+        <button class="perm-law-btn" data-law="New law  1. window" onclick="setPermLaw('New law  1. window')">1st GC</button>
+        <button class="perm-law-btn" data-law="New law  2. window" onclick="setPermLaw('New law  2. window')">2nd GC</button>
+        <button class="perm-law-btn" data-law="New law  3. window" onclick="setPermLaw('New law  3. window')">3rd GC</button>
+        <button class="perm-law-btn" data-law="New law  4. window" onclick="setPermLaw('New law  4. window')">4th GC</button>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px">Technology</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="perm-tech-btns">
+        <button class="perm-tech-btn active" data-tech="" onclick="setPermTech('')">All</button>
+        <button class="perm-tech-btn" data-tech="Wind" onclick="setPermTech('Wind')" style="color:#3b9eff">Wind</button>
+        <button class="perm-tech-btn" data-tech="Solar" onclick="setPermTech('Solar')" style="color:#f5c842">Solar</button>
+        <button class="perm-tech-btn" data-tech="BESS" onclick="setPermTech('BESS')" style="color:#f97316">BESS</button>
+        <button class="perm-tech-btn" data-tech="Hybrid" onclick="setPermTech('Hybrid')" style="color:#a855f7">Hybrid</button>
+      </div>
+    </div>
+    <div id="perm-summary" style="margin-left:auto;text-align:right;align-self:flex-end"></div>
+  </div>
+
+  <!-- Charts -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <div class="chart-card">
+      <div class="chart-title">Total Capacity (MW) by Permitting Phase</div>
+      <div style="position:relative;height:320px"><canvas id="perm-chart-mw"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Number of Projects by Permitting Phase</div>
+      <div style="position:relative;height:320px"><canvas id="perm-chart-count"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Stacked bar: per window × phase -->
+  <div class="chart-card" style="margin-top:20px">
+    <div class="chart-title">MW per Window — breakdown by Permitting Phase</div>
+    <div style="position:relative;height:280px"><canvas id="perm-chart-stack"></canvas></div>
   </div>
 </div>
 
@@ -1611,6 +1670,7 @@ function showView(name) {
   if (name === 'map') renderMap();
   if (name === 'charts') renderCharts2();
   if (name === 'table') { currentPage = 1; renderTable(); }
+  if (name === 'permitting') renderPermittingCharts();
 }
 
 // ========== TABLE ==========
@@ -1907,6 +1967,129 @@ function renderCharts2() {
       <div class="investor-bar-bg"><div class="investor-bar" style="width:${mw/maxMW*100}%"></div></div>
       <span class="investor-mw">${Math.round(mw)} MW</span>
     </div>`).join('');
+}
+
+// ========== PERMITTING CHARTS ==========
+let _permLaw = '', _permTech = '';
+
+window.setPermLaw = function(law) {
+  _permLaw = law;
+  document.querySelectorAll('.perm-law-btn').forEach(b => b.classList.toggle('active', b.dataset.law === law));
+  renderPermittingCharts();
+};
+window.setPermTech = function(tech) {
+  _permTech = tech;
+  document.querySelectorAll('.perm-tech-btn').forEach(b => b.classList.toggle('active', b.dataset.tech === tech));
+  renderPermittingCharts();
+};
+
+function renderPermittingCharts() {
+  const PERMIT_ORDER = [
+    'Nothing (inactive)',
+    'Urbanistic Plan in preparation',
+    'Urbanistic Plan Adopted',
+    'Location Conditions',
+    'Energy permit',
+    'Building Permit',
+    'Finished'
+  ];
+  const PERMIT_SHORT = {
+    'Nothing (inactive)':            'Inactive',
+    'Urbanistic Plan in preparation':'UP in prep.',
+    'Urbanistic Plan Adopted':       'UP Adopted',
+    'Location Conditions':           'Location Cond.',
+    'Energy permit':                 'Energy Permit',
+    'Building Permit':               'Building Permit',
+    'Finished':                      'Finished'
+  };
+  const PERMIT_COLORS = [
+    '#475569','#64748b','#3b9eff','#38bdf8','#f5c842','#f97316','#22c55e'
+  ];
+  const LAW_LABELS = {'Old law':'Old Law','New law  1. window':'1st GC','New law  2. window':'2nd GC','New law  3. window':'3rd GC','New law  4. window':'4th GC'};
+  const LAW_COLORS = {'Old law':'#64748b','New law  1. window':'#3b9eff','New law  2. window':'#00e5a0','New law  3. window':'#f5c842','New law  4. window':'#a855f7'};
+  const LAW_ORDER  = ['Old law','New law  1. window','New law  2. window','New law  3. window','New law  4. window'];
+
+  const filtered = PROJECTS.filter(p =>
+    (!_permLaw  || p.law === _permLaw) &&
+    (!_permTech || p.technology.trim() === _permTech)
+  );
+
+  // Summary
+  const totalMW = filtered.reduce((s,p) => s + (p.capacity_mw||0), 0);
+  document.getElementById('perm-summary').innerHTML =
+    `<div style="font-size:22px;font-weight:700;color:var(--text)">${Math.round(totalMW).toLocaleString()} MW</div>
+     <div style="font-size:12px;color:var(--muted)">${filtered.length} projects</div>`;
+
+  // Aggregate per permitting status
+  const mwByPhase = {}, cntByPhase = {};
+  PERMIT_ORDER.forEach(s => { mwByPhase[s] = 0; cntByPhase[s] = 0; });
+  filtered.forEach(p => {
+    const s = p.status_permitting || 'Nothing (inactive)';
+    if (mwByPhase[s] !== undefined) { mwByPhase[s] += p.capacity_mw||0; cntByPhase[s]++; }
+  });
+
+  const labels = PERMIT_ORDER.map(s => PERMIT_SHORT[s]);
+
+  // Chart 1: MW per phase
+  makeChart('perm-chart-mw', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: PERMIT_ORDER.map(s => Math.round(mwByPhase[s])), backgroundColor: PERMIT_COLORS, borderRadius: 6 }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + ctx.raw.toLocaleString() + ' MW' } } },
+      scales: {
+        x: { ticks: { color: '#64748b' }, grid: { color: '#1e2d47' } },
+        y: { ticks: { color: '#e2e8f0', font: { size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  // Chart 2: Count per phase
+  makeChart('perm-chart-count', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: PERMIT_ORDER.map(s => cntByPhase[s]), backgroundColor: PERMIT_COLORS, borderRadius: 6 }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + ctx.raw + ' projects' } } },
+      scales: {
+        x: { ticks: { color: '#64748b' }, grid: { color: '#1e2d47' } },
+        y: { ticks: { color: '#e2e8f0', font: { size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  // Chart 3: Stacked bar — MW per window × permitting phase
+  const stackDatasets = PERMIT_ORDER.map((phase, i) => ({
+    label: PERMIT_SHORT[phase],
+    data: LAW_ORDER.map(law => {
+      return Math.round(PROJECTS
+        .filter(p => p.law === law && p.status_permitting === phase && (!_permTech || p.technology.trim() === _permTech))
+        .reduce((s,p) => s + (p.capacity_mw||0), 0));
+    }),
+    backgroundColor: PERMIT_COLORS[i],
+    borderRadius: 4
+  }));
+
+  makeChart('perm-chart-stack', {
+    type: 'bar',
+    data: {
+      labels: LAW_ORDER.map(k => LAW_LABELS[k]),
+      datasets: stackDatasets
+    },
+    options: {
+      plugins: { legend: { labels: { color: '#64748b', font: { size: 11 } } }, tooltip: { callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + ctx.raw.toLocaleString() + ' MW' } } },
+      scales: {
+        x: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e2d47' } },
+        y: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e2d47' } }
+      }
+    }
+  });
 }
 
 // ========== MAP (Leaflet.js) ==========
