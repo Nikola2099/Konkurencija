@@ -3533,6 +3533,7 @@ function openProjSummary(id) {
 
   document.getElementById('psm-edit-btn-wrap').innerHTML = EDIT_USERS.has(currentUser)
     ? '<button onclick="showOverviewEdit()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">✏️ Edit</button>'
+      + '<button onclick="deleteProject()" style="background:transparent;border:1px solid #ef444444;border-radius:8px;padding:6px 14px;color:#ef4444;font-size:12px;cursor:pointer;transition:all .2s;margin-left:8px" onmouseover="this.style.background=\'#ef444422\'" onmouseout="this.style.background=\'transparent\'">🗑 Delete</button>'
     : '';
   document.getElementById('psm-overview-edit').style.display = 'none';
 
@@ -5170,6 +5171,30 @@ async function saveNotes() {
 function closeProjSummary() {
   document.getElementById('proj-summary-modal').style.display = 'none';
   document.body.style.overflow = '';
+}
+
+async function deleteProject() {
+  const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
+  if (!p) return;
+  if (!confirm('Obriši projekat "' + p.name + '"?\n\nOva akcija je nepovratna.')) return;
+  try {
+    const resp = await fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
+      method: 'DELETE',
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken, 'Prefer': 'return=minimal' }
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      alert('Greška pri brisanju: ' + err.slice(0, 200));
+      return;
+    }
+  } catch(e) {
+    alert('Greška pri brisanju: ' + e.message);
+    return;
+  }
+  PROJECTS = PROJECTS.filter(function(x){ return parseInt(x.id) !== _psmProjectId; });
+  closeProjSummary();
+  renderTable();
+  renderCards();
 }
 
 function showOverviewEdit() {
