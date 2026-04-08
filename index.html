@@ -1668,7 +1668,7 @@ async function doLogin() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('add-proj-btn').style.display = EDIT_USERS.has(currentUser) ? 'block' : 'none';
-  loadProjectsFromDB().then(initApp);
+  loadProjectsFromDB().then(syncPermitStatuses).then(initApp);
 }
 
 async function doLogout() {
@@ -4371,6 +4371,85 @@ const STRUCTURED_PROCESSES = {
   'Energetska Dozvola': ['Zahtev za ED', 'Energetska dozvola izdata']
 };
 
+// Auto-compute status_permitting from permit_history
+// Returns 'Building Permit', 'Energy permit', or null (can't determine)
+function computePermitStatus(p) {
+  if (!p.permit_history || typeof p.permit_history !== 'object' || Array.isArray(p.permit_history)) return null;
+  const ph = p.permit_history;
+  const GD_KW = ['građevinska', 'gradevinska', ' gd', 'gd ', 'gd-', '-gd', '(gd)'];
+  const DEFAULT_ASP = ['Urbanizam', 'Energetska Dozvola'];
+
+  // Check Urbanizam timeline entries (DEFAULT_ASPECT: {type, date, desc})
+  const urbArr = ph['Urbanizam'];
+  if (Array.isArray(urbArr)) {
+    const gdApproved = urbArr.some(function(e) {
+      if (e.type !== 'Approved') return false;
+      const d = (e.desc || '').toLowerCase();
+      return GD_KW.some(function(kw) { return d.includes(kw); });
+    });
+    if (gdApproved) return 'Building Permit';
+  }
+
+  // Check custom aspects (CUSTOM format: {name, date_approved, dates_rejected})
+  const customKeys = Object.keys(ph).filter(function(k) {
+    return k !== '_completed' && !DEFAULT_ASP.includes(k);
+  });
+  for (var ci = 0; ci < customKeys.length; ci++) {
+    var entries = Array.isArray(ph[customKeys[ci]]) ? ph[customKeys[ci]] : [];
+    var gdApprovedCustom = entries.some(function(e) {
+      var nm = (e.name || '').toLowerCase();
+      return e.date_approved && GD_KW.some(function(kw) { return nm.includes(kw); });
+    });
+    if (gdApprovedCustom) return 'Building Permit';
+  }
+
+  // Check Energetska Dozvola
+  const edArr = ph['Energetska Dozvola'];
+  if (Array.isArray(edArr) && edArr.some(function(e) { return e.type === 'Approved'; })) {
+    return 'Energy permit';
+  }
+
+  return null;
+}
+
+// After load: auto-sync status_permitting from permit_history and save to DB
+async function syncPermitStatuses() {
+  const updates = [];
+  PROJECTS.forEach(function(p) {
+    var computed = computePermitStatus(p);
+    if (computed && computed !== p.status_permitting) {
+      console.log('[PermitSync] ' + p.name + ': "' + p.status_permitting + '" → "' + computed + '"');
+      p.status_permitting = computed;
+      updates.push(p);
+    }
+  });
+  for (var i = 0; i < updates.length; i++) {
+    try {
+      await fetch(SB_URL + '/rest/v1/projects?id=eq.' + updates[i].id, {
+        method: 'PATCH',
+        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ status_permitting: updates[i].status_permitting })
+      });
+    } catch(e) {}
+  }
+  if (updates.length) console.log('[PermitSync] Updated ' + updates.length + ' projects');
+}
+
+// Re-check and update status_permitting for one project after permit history change
+async function refreshPermitStatusForProject(p) {
+  var computed = computePermitStatus(p);
+  if (computed && computed !== p.status_permitting) {
+    p.status_permitting = computed;
+    try {
+      await fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
+        method: 'PATCH',
+        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ status_permitting: p.status_permitting })
+      });
+    } catch(e) {}
+  }
+}
+
 function renderPermitHistory(p) {
   const isAdmin = EDIT_USERS.has(currentUser);
   if (!p.permit_history || Array.isArray(p.permit_history)) {
@@ -4712,6 +4791,7 @@ async function saveInlineProcess(asp) {
       body:JSON.stringify({permit_history:p.permit_history})
     });
   } catch(e) {}
+  await refreshPermitStatusForProject(p);
   renderPermitHistory(p);
 }
 
@@ -4734,6 +4814,7 @@ async function saveInlineEntry(asp, aid) {
       body:JSON.stringify({permit_history:p.permit_history})
     });
   } catch(e) {}
+  await refreshPermitStatusForProject(p);
   renderPermitHistory(p);
 }
 
@@ -4793,6 +4874,7 @@ async function saveEditProcess(asp, idx) {
       body:JSON.stringify({permit_history:p.permit_history})
     });
   } catch(e) {}
+  await refreshPermitStatusForProject(p);
   renderPermitHistory(p);
 }
 
