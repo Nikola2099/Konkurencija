@@ -4997,9 +4997,13 @@ const PROCESS_OPTIONS = [
 function openNewAspectForm() {
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
   const existing = p && p.permit_history ? Object.keys(p.permit_history).filter(function(k){ return k !== '_completed'; }) : [];
+  // An option is "used" if it appears as a standalone key OR inside a combined key (e.g. "Elektrana / TS")
+  const isUsed = function(opt) {
+    return existing.some(function(k) { return k === opt || k.split(' / ').indexOf(opt) !== -1; });
+  };
   const chips = document.getElementById('psm-aspect-chips');
   if (chips) {
-    const available = ASPECT_OPTIONS.filter(function(opt){ return !existing.includes(opt); });
+    const available = ASPECT_OPTIONS.filter(function(opt){ return !isUsed(opt); });
     if (available.length === 0) {
       chips.innerHTML = '<div style="font-size:12px;color:var(--muted);font-style:italic">Svi aspekti su već dodati.</div>';
     } else {
@@ -5031,12 +5035,11 @@ async function addNewAspect() {
   const selected = Array.from(document.querySelectorAll('#psm-aspect-chips button[data-selected="1"]'))
     .map(function(b){ return b.dataset.aspect; });
   if (!selected.length) return;
-  let lastAdded = null;
-  selected.forEach(function(name) {
-    if (!p.permit_history[name]) { p.permit_history[name] = []; lastAdded = name; }
-  });
+  // Multiple selections → one combined aspect "A / B / C"
+  const aspectName = selected.join(' / ');
+  if (!p.permit_history[aspectName]) { p.permit_history[aspectName] = []; }
   document.getElementById('psm-new-aspect-form').style.display = 'none';
-  if (lastAdded) _activeAspect = lastAdded;
+  _activeAspect = aspectName;
   try {
     await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
       method:'PATCH',
@@ -6094,7 +6097,7 @@ function initApp() {
         <!-- Add custom aspect form -->
         <div id="psm-new-aspect-form" style="display:none;background:var(--surface2);border-radius:12px;padding:16px;margin-top:10px">
           <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px">Dodaj aspekte</div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Izaberi jedan ili više aspekata</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Izaberi jedan ili više — višestruki izbor se spaja u jedan aspekt (npr. "Elektrana / TS")</div>
           <div id="psm-aspect-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
           <div style="display:flex;gap:8px">
             <button onclick="document.getElementById('psm-new-aspect-form').style.display='none'" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-size:12px;cursor:pointer">Otkaži</button>
