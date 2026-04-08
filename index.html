@@ -2124,12 +2124,18 @@ function renderPermittingCharts() {
     if (!key) return { status:'no_data', date_approved:null };
     const procs = ph[key];
     if (!Array.isArray(procs) || !procs.length) return { status:'no_data', date_approved:null };
-    const gd = procs.find(function(e) { return norm(e.name).includes('gradjevinsk'); });
-    if (!gd) return { status:'no_data', date_approved:null };
-    if (gd.date_approved) return { status:'approved', date_approved: gd.date_approved };
-    const rejDates = gd.dates_rejected || (gd.date_rejected ? [gd.date_rejected] : []);
-    if (rejDates.length) return { status:'rejected', date_approved:null };
-    if (gd.date_submitted) return { status:'submitted', date_approved:null };
+    const gdAll = procs.filter(function(e) { return norm(e.name).includes('gradjevinsk'); });
+    if (!gdAll.length) return { status:'no_data', date_approved:null };
+    // Ako ijedna GD ima date_approved → odobrena (bez obzira na prethodna odbijanja)
+    const gdApproved = gdAll.find(function(e) { return !!e.date_approved; });
+    if (gdApproved) return { status:'approved', date_approved: gdApproved.date_approved };
+    const gdRejected = gdAll.find(function(e) {
+      const r = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
+      return r.length > 0;
+    });
+    if (gdRejected) return { status:'rejected', date_approved:null };
+    const gdSubmitted = gdAll.find(function(e) { return !!e.date_submitted; });
+    if (gdSubmitted) return { status:'submitted', date_approved:null };
     return { status:'pending', date_approved:null };
   }
 
