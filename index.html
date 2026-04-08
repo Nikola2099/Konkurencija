@@ -5255,6 +5255,8 @@ async function saveOverviewEdit() {
     msg.textContent = '✓ Saved';
     msg.style.color = '#22c55e';
     msg.style.display = 'block';
+    renderTable();
+    renderCards();
     setTimeout(function(){
       document.getElementById('psm-overview-edit').style.display = 'none';
       openProjSummary(_psmProjectId);
