@@ -4424,7 +4424,7 @@ async function syncPermitStatuses() {
     try {
       await fetch(SB_URL + '/rest/v1/projects?id=eq.' + updates[i].id, {
         method: 'PATCH',
-        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
         body: JSON.stringify({ status_permitting: updates[i].status_permitting })
       });
     } catch(e) {}
@@ -4440,7 +4440,7 @@ async function refreshPermitStatusForProject(p) {
     try {
       await fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
         method: 'PATCH',
-        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
         body: JSON.stringify({ status_permitting: p.status_permitting })
       });
     } catch(e) {}
@@ -5239,7 +5239,7 @@ async function saveOverviewEdit() {
   msg.style.display = 'block';
   setTimeout(function(){
     document.getElementById('psm-overview-edit').style.display = 'none';
-    openProjectModal(_psmProjectId);
+    openProjSummary(_psmProjectId);
   }, 600);
 }
 
