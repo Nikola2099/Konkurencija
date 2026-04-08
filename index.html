@@ -1332,21 +1332,12 @@
 
   <!-- Građevinska dozvola — Elektrana -->
   <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border)">
-    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text);margin-bottom:4px">Građevinska dozvola — Elektrana</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Prva građevinska dozvola za elektranu po projektu (iz Permitting → Elektrana)</div>
-    <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:24px;align-items:start">
-      <!-- Stat kartice -->
-      <div style="display:flex;flex-direction:column;gap:12px;min-width:200px" id="gd-stats"></div>
-      <!-- Donut chart -->
-      <div class="chart-card">
-        <div class="chart-title">Status — broj projekata</div>
-        <div style="position:relative;height:260px"><canvas id="perm-chart-gd"></canvas></div>
-      </div>
-      <!-- Bar chart po godinama -->
-      <div class="chart-card">
-        <div class="chart-title">Odobrene GD — po godini</div>
-        <div style="position:relative;height:260px"><canvas id="perm-chart-gd-years"></canvas></div>
-      </div>
+    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text);margin-bottom:4px">Odobrene GD — Elektrana</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Građevinske dozvole za elektranu po godini odobravanja (iz Permitting → Elektrana)</div>
+    <!-- Line chart po godinama -->
+    <div class="chart-card">
+      <div class="chart-title">Odobrene GD — broj projekata i snaga po godini</div>
+      <div style="position:relative;height:320px"><canvas id="perm-chart-gd-years"></canvas></div>
     </div>
     <!-- Lista odobrenih projekata -->
     <div style="margin-top:20px" id="gd-approved-list"></div>
@@ -2144,104 +2135,104 @@ function renderPermittingCharts() {
     return (!_permLaw || p.law === _permLaw) && (!_permTech || p.technology.trim() === _permTech);
   });
 
-  const gdBuckets = { approved:[], submitted:[], rejected:[], pending:[], no_data:[] };
-  const gdByYear = {};  // year → [projects]
+  const gdBuckets = { approved:[] };
+  const gdByYear = {};  // year → { count, mw }
   gdProjects.forEach(function(p) {
     const info = getGDInfo(p);
-    gdBuckets[info.status].push(p);
+    if (info.status === 'approved') gdBuckets.approved.push(p);
     if (info.status === 'approved' && info.date_approved) {
       const parts = info.date_approved.split('/');
       const year = parts.length === 3 ? parts[2] : null;
       if (year && year.length === 4) {
-        if (!gdByYear[year]) gdByYear[year] = [];
-        gdByYear[year].push(p);
+        if (!gdByYear[year]) gdByYear[year] = { count: 0, mw: 0, projs: [] };
+        gdByYear[year].count++;
+        gdByYear[year].mw += p.capacity_mw || 0;
+        gdByYear[year].projs.push(p);
       }
     }
   });
 
-  // Stat kartice
-  const statEl = document.getElementById('gd-stats');
-  if (statEl) {
-    statEl.innerHTML = [
-      { label:'Odobrena', count: gdBuckets.approved.length,  color:'#22c55e' },
-      { label:'Podneta',  count: gdBuckets.submitted.length, color:'#f5c842' },
-      { label:'Odbijena', count: gdBuckets.rejected.length,  color:'#ef4444' },
-      { label:'U toku',   count: gdBuckets.pending.length,   color:'#94a3b8' },
-      { label:'Bez podataka', count: gdBuckets.no_data.length, color:'#1e2d47' }
-    ].map(function(s) {
-      return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 18px;display:flex;align-items:center;gap:14px">'
-        +'<div style="width:12px;height:12px;border-radius:50%;background:'+s.color+';flex-shrink:0"></div>'
-        +'<div>'
-        +'<div style="font-size:22px;font-weight:700;color:var(--text)">'+s.count+'</div>'
-        +'<div style="font-size:12px;color:var(--muted)">'+s.label+'</div>'
-        +'</div></div>';
-    }).join('');
-  }
-
-  // Donut chart
-  makeChart('perm-chart-gd', {
-    type: 'doughnut',
-    data: {
-      labels: ['Odobrena','Podneta','Odbijena','U toku','Bez podataka'],
-      datasets: [{ data: [gdBuckets.approved.length, gdBuckets.submitted.length, gdBuckets.rejected.length, gdBuckets.pending.length, gdBuckets.no_data.length],
-        backgroundColor: ['#22c55e','#f5c842','#ef4444','#94a3b8','#1e2d47'], borderWidth: 2, borderColor: '#131929' }]
-    },
-    options: { ...CHART_DEFAULTS, cutout: '60%', plugins: { legend: { position:'bottom', labels:{ color:'#64748b', font:{size:11} } } } }
-  });
-
-  // Grafik po godinama
+  // Dual-axis line chart po godinama
   const years = Object.keys(gdByYear).sort();
-  if (years.length > 0) {
-    makeChart('perm-chart-gd-years', {
-      type: 'bar',
-      data: {
-        labels: years,
-        datasets: [{
-          data: years.map(function(y) { return gdByYear[y].length; }),
-          backgroundColor: '#22c55e99',
-          borderColor: '#22c55e',
-          borderWidth: 1.5,
-          borderRadius: 6
-        }]
+  makeChart('perm-chart-gd-years', {
+    type: 'line',
+    data: {
+      labels: years,
+      datasets: [
+        {
+          label: 'Broj projekata',
+          data: years.map(function(y) { return gdByYear[y].count; }),
+          borderColor: '#00e5a0',
+          backgroundColor: '#00e5a022',
+          borderWidth: 2.5,
+          pointRadius: 5,
+          pointBackgroundColor: '#00e5a0',
+          tension: 0.3,
+          fill: false,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Snaga (MW)',
+          data: years.map(function(y) { return Math.round(gdByYear[y].mw); }),
+          borderColor: '#3b9eff',
+          backgroundColor: '#3b9eff22',
+          borderWidth: 2.5,
+          pointRadius: 5,
+          pointBackgroundColor: '#3b9eff',
+          tension: 0.3,
+          fill: false,
+          yAxisID: 'y2'
+        }
+      ]
+    },
+    options: {
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { size: 12 } } },
+        tooltip: { callbacks: {
+          label: function(ctx) {
+            return ctx.dataset.label + ': ' + ctx.raw + (ctx.dataset.yAxisID === 'y' ? (ctx.raw === 1 ? ' projekat' : ' projekata') : ' MW');
+          }
+        }}
       },
-      options: {
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return ' ' + ctx.raw + (ctx.raw === 1 ? ' projekat' : ' projekata'); } } } },
-        scales: {
-          x: { ticks: { color: '#e2e8f0' }, grid: { color: '#1e2d47' } },
-          y: { ticks: { color: '#64748b', stepSize: 1 }, grid: { color: '#1e2d47' }, beginAtZero: true }
+      scales: {
+        x: { ticks: { color: '#e2e8f0' }, grid: { color: '#1e2d47' } },
+        y: {
+          type: 'linear', position: 'left',
+          ticks: { color: '#00e5a0', stepSize: 1 },
+          grid: { color: '#1e2d4766' },
+          beginAtZero: true,
+          title: { display: true, text: 'Broj projekata', color: '#00e5a0', font: { size: 11 } }
+        },
+        y2: {
+          type: 'linear', position: 'right',
+          ticks: { color: '#3b9eff' },
+          grid: { drawOnChartArea: false },
+          beginAtZero: true,
+          title: { display: true, text: 'MW', color: '#3b9eff', font: { size: 11 } }
         }
       }
-    });
-  }
+    }
+  });
 
-  // Lista projekata po GD statusu
+  // Lista odobrenih GD projekata
   const listEl = document.getElementById('gd-approved-list');
   if (listEl) {
     const techColors = { Wind:'#3b9eff', Solar:'#f5c842', Hybrid:'#a855f7', BESS:'#f97316' };
-    const gdSections = [
-      { key:'approved',  label:'Odobrena GD', color:'#22c55e', border:'#22c55e33' },
-      { key:'submitted', label:'Podneta GD',   color:'#f5c842', border:'#f5c84233' },
-      { key:'rejected',  label:'Odbijena GD',  color:'#ef4444', border:'#ef444433' },
-      { key:'pending',   label:'U toku (GD)',  color:'#94a3b8', border:'#94a3b833' }
-    ];
-    const sections = gdSections.filter(function(s){ return gdBuckets[s.key].length > 0; });
-    if (sections.length === 0) {
+    if (!gdBuckets.approved.length) {
       listEl.innerHTML = '';
     } else {
-      listEl.innerHTML = sections.map(function(s) {
-        return '<div style="margin-bottom:14px">'
-          +'<div style="font-size:12px;font-weight:600;color:'+s.color+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+s.label+' ('+gdBuckets[s.key].length+')</div>'
-          +'<div style="display:flex;flex-wrap:wrap;gap:8px">'
-          + gdBuckets[s.key].map(function(p) {
-              const col = techColors[p.technology.trim()] || '#94a3b8';
-              return '<div style="background:var(--surface2);border:1px solid '+s.border+';border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="openProjSummary('+p.id+')">'
-                +'<div style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></div>'
-                +'<div style="font-size:12px;font-weight:600;color:var(--text)">'+p.name+'</div>'
-                +'<div style="font-size:11px;color:var(--muted)">'+p.capacity_mw+' MW</div>'
-                +'</div>';
-            }).join('')
-          +'</div></div>';
-      }).join('');
+      listEl.innerHTML = '<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:#22c55e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Odobrena GD ('+gdBuckets.approved.length+')</div>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:8px">'
+        + gdBuckets.approved.map(function(p) {
+            const col = techColors[p.technology.trim()] || '#94a3b8';
+            return '<div style="background:var(--surface2);border:1px solid #22c55e33;border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="openProjSummary('+p.id+')">'
+              +'<div style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></div>'
+              +'<div style="font-size:12px;font-weight:600;color:var(--text)">'+p.name+'</div>'
+              +'<div style="font-size:11px;color:var(--muted)">'+p.capacity_mw+' MW</div>'
+              +'</div>';
+          }).join('')
+        +'</div></div>';
     }
   }
   // ────────────────────────────────────────────────────────
