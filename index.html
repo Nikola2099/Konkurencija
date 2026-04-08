@@ -5211,7 +5211,7 @@ function cancelOverviewEdit() {
 
 async function saveOverviewEdit() {
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
-  if (!p) return;
+  if (!p) { console.error('[saveOverviewEdit] Project not found, _psmProjectId=', _psmProjectId); return; }
   p.status_overall    = document.getElementById('ov-edit-status').value;
   p.probability       = document.getElementById('ov-edit-prob').value;
   p.status_permitting = document.getElementById('ov-edit-permitting').value;
@@ -5221,8 +5221,10 @@ async function saveOverviewEdit() {
   const rtbQ = document.getElementById('ov-edit-rtb-q').value;
   const rtbY = document.getElementById('ov-edit-rtb-y').value;
   p.rtb_date = isHigh && rtbQ && rtbY ? (rtbQ + '-' + rtbY) : '';
+  const msg = document.getElementById('ov-edit-msg');
+  let saveOk = false;
   try {
-    await fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
+    const resp = await fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
       method: 'PATCH',
       headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({
@@ -5234,13 +5236,30 @@ async function saveOverviewEdit() {
         rtb_date: p.rtb_date || null
       })
     });
-  } catch(e) {}
-  const msg = document.getElementById('ov-edit-msg');
-  msg.style.display = 'block';
-  setTimeout(function(){
-    document.getElementById('psm-overview-edit').style.display = 'none';
-    openProjSummary(_psmProjectId);
-  }, 600);
+    if (resp.ok) {
+      saveOk = true;
+    } else {
+      const errText = await resp.text();
+      console.error('[saveOverviewEdit] PATCH failed', resp.status, errText);
+      msg.textContent = '✗ Error ' + resp.status + ': ' + errText.slice(0, 120);
+      msg.style.color = '#ef4444';
+      msg.style.display = 'block';
+    }
+  } catch(e) {
+    console.error('[saveOverviewEdit] fetch error', e);
+    msg.textContent = '✗ Network error: ' + e.message;
+    msg.style.color = '#ef4444';
+    msg.style.display = 'block';
+  }
+  if (saveOk) {
+    msg.textContent = '✓ Saved';
+    msg.style.color = '#22c55e';
+    msg.style.display = 'block';
+    setTimeout(function(){
+      document.getElementById('psm-overview-edit').style.display = 'none';
+      openProjSummary(_psmProjectId);
+    }, 600);
+  }
 }
 
 function openAddModal() {
