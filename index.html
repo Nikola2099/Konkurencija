@@ -1659,7 +1659,7 @@ async function doLogin() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('add-proj-btn').style.display = EDIT_USERS.has(currentUser) ? 'block' : 'none';
-  loadProjectsFromDB().then(syncPermitStatuses).then(initApp);
+  loadProjectsFromDB().then(initApp);
 }
 
 async function doLogout() {
