@@ -874,12 +874,12 @@
 
   /* MAP VIEW */
   #map-view { padding: 32px; }
-  .perm-law-btn, .perm-tech-btn {
+  .perm-aspect-btn {
     padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border);
     background: transparent; color: var(--muted); font-family: 'DM Sans', sans-serif;
     font-size: 12px; cursor: pointer; transition: all .2s;
   }
-  .perm-law-btn.active, .perm-tech-btn.active {
+  .perm-aspect-btn.active {
     background: var(--accent); color: #0b0f1a; border-color: var(--accent); font-weight: 600;
   }
 
@@ -1283,64 +1283,39 @@
 
 <!-- PERMITTING VIEW -->
 <div class="view" id="permitting-view" style="padding:32px">
-  <div class="section-title">Permitting Analysis</div>
-  <div class="section-sub">Distribution of projects by permitting phase — capacity and count</div>
 
-  <!-- Filters -->
-  <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;margin:20px 0 28px">
-    <div>
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px">Regulatory Window</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap" id="perm-law-btns">
-        <button class="perm-law-btn active" data-law="" onclick="setPermLaw('')">All</button>
-        <button class="perm-law-btn" data-law="Old law" onclick="setPermLaw('Old law')">Old Law</button>
-        <button class="perm-law-btn" data-law="New law  1. window" onclick="setPermLaw('New law  1. window')">1st GC</button>
-        <button class="perm-law-btn" data-law="New law  2. window" onclick="setPermLaw('New law  2. window')">2nd GC</button>
-        <button class="perm-law-btn" data-law="New law  3. window" onclick="setPermLaw('New law  3. window')">3rd GC</button>
-        <button class="perm-law-btn" data-law="New law  4. window" onclick="setPermLaw('New law  4. window')">4th GC</button>
+  <!-- Permitting Speed & Backlog Analysis -->
+  <div>
+    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text);margin-bottom:4px">Brzina i status dozvola</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Prosečno vreme čekanja, trend kroz godine i projekti trenutno u proceduri (iz Permitting → svi aspekti)</div>
+
+    <!-- Aspect filter -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px" id="perm-aspect-btns">
+      <button class="perm-aspect-btn active" data-aspect="" onclick="setPermAspect('')">All</button>
+      <button class="perm-aspect-btn" data-aspect="Elektrana" onclick="setPermAspect('Elektrana')">Elektrana</button>
+      <button class="perm-aspect-btn" data-aspect="TS" onclick="setPermAspect('TS')">TS</button>
+      <button class="perm-aspect-btn" data-aspect="OHL" onclick="setPermAspect('OHL')">OHL</button>
+    </div>
+
+    <!-- Stat cards: avg/median wait per phase -->
+    <div class="stats-row" id="perm-wait-stats" style="grid-template-columns:repeat(3,1fr)"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px">
+      <div class="chart-card">
+        <div class="chart-title">Prosečno vreme čekanja po godini (dana)</div>
+        <div style="position:relative;height:300px"><canvas id="perm-chart-wait-trend"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Broj izdatih dozvola po godini — sve faze</div>
+        <div style="position:relative;height:300px"><canvas id="perm-chart-year-all"></canvas></div>
       </div>
     </div>
-    <div>
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px">Technology</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap" id="perm-tech-btns">
-        <button class="perm-tech-btn active" data-tech="" onclick="setPermTech('')">All</button>
-        <button class="perm-tech-btn" data-tech="Wind" onclick="setPermTech('Wind')" style="color:#3b9eff">Wind</button>
-        <button class="perm-tech-btn" data-tech="Solar" onclick="setPermTech('Solar')" style="color:#f5c842">Solar</button>
-        <button class="perm-tech-btn" data-tech="BESS" onclick="setPermTech('BESS')" style="color:#f97316">BESS</button>
-        <button class="perm-tech-btn" data-tech="Hybrid" onclick="setPermTech('Hybrid')" style="color:#a855f7">Hybrid</button>
-      </div>
-    </div>
-    <div id="perm-summary" style="margin-left:auto;text-align:right;align-self:flex-end"></div>
-  </div>
 
-  <!-- Charts -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-    <div class="chart-card">
-      <div class="chart-title">Total Capacity (MW) by Permitting Phase</div>
-      <div style="position:relative;height:320px"><canvas id="perm-chart-mw"></canvas></div>
+    <!-- Pending permits table -->
+    <div class="chart-card" style="margin-top:20px">
+      <div class="chart-title">Trenutno u čekanju</div>
+      <div id="perm-pending-list"></div>
     </div>
-    <div class="chart-card">
-      <div class="chart-title">Number of Projects by Permitting Phase</div>
-      <div style="position:relative;height:320px"><canvas id="perm-chart-count"></canvas></div>
-    </div>
-  </div>
-
-  <!-- Stacked bar: per window × phase -->
-  <div class="chart-card" style="margin-top:20px">
-    <div class="chart-title">MW per Window — breakdown by Permitting Phase</div>
-    <div style="position:relative;height:280px"><canvas id="perm-chart-stack"></canvas></div>
-  </div>
-
-  <!-- Građevinska dozvola — Elektrana -->
-  <div style="margin-top:28px;padding-top:24px;border-top:1px solid var(--border)">
-    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text);margin-bottom:4px">Odobrene GD — Elektrana</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Građevinske dozvole za elektranu po godini odobravanja (iz Permitting → Elektrana)</div>
-    <!-- Line chart po godinama -->
-    <div class="chart-card">
-      <div class="chart-title">Odobrene GD — broj projekata i snaga po godini</div>
-      <div style="position:relative;height:320px"><canvas id="perm-chart-gd-years"></canvas></div>
-    </div>
-    <!-- Lista odobrenih projekata -->
-    <div style="margin-top:20px" id="gd-approved-list"></div>
   </div>
 </div>
 
@@ -1856,6 +1831,133 @@ function makeChart(id, config) {
   charts[id] = new Chart(document.getElementById(id), config);
 }
 
+// ========== PERMIT WAIT-TIME / BACKLOG ANALYSIS (shared helpers) ==========
+function parseAnyDate(s) {
+  if (!s || typeof s !== 'string') return null;
+  let m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) { const d = new Date(+m[3], +m[2]-1, +m[1]); return isNaN(d.getTime()) ? null : d; }
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) { const d = new Date(+m[1], +m[2]-1, +m[3]); return isNaN(d.getTime()) ? null : d; }
+  return null;
+}
+function daysBetweenDates(d1, d2) { return Math.round((d2 - d1) / 86400000); }
+function normSrLatin(s) {
+  return (s||'').toLowerCase().replace(/đ/g,'dj').replace(/č/g,'c').replace(/ć/g,'c').replace(/š/g,'s').replace(/ž/g,'z');
+}
+function classifyPermitProcessName(name) {
+  const n = normSrLatin(name);
+  if (n.includes('lokacijsk')) return 'Lokacijski uslovi';
+  if (n.includes('gradjevinsk')) return 'Građevinska dozvola';
+  return null;
+}
+const PERMIT_PHASE_CATS = ['Lokacijski uslovi','Građevinska dozvola','Urbanistički plan','Energetska dozvola'];
+const PERMIT_DURATION_CATS = ['Lokacijski uslovi','Građevinska dozvola'];
+function formatDurationDays(days) {
+  const years = Math.floor(days/365), months = Math.floor((days%365)/30), rem = days%365%30;
+  if (years > 0) return years+'g '+months+'m';
+  if (months > 0) return months+'m '+rem+'d';
+  return days+' dana';
+}
+
+// Walks permit_history of the given (already filtered) projects and returns:
+//  - durations[cat] = [{days, year}]           (only for cats with reliable submit+approve dates)
+//  - byYear[cat][year] = count of permits obtained that year
+//  - pending = [{project, category, aspect, caseNum, dateSubmitted, daysWaiting}]
+function collectPermitPhaseData(projects, aspectFilter) {
+  const durations = {}; PERMIT_DURATION_CATS.forEach(c => durations[c] = []);
+  const byYear = {}; PERMIT_PHASE_CATS.forEach(c => byYear[c] = {});
+  const pendingMap = {};
+  const now = new Date();
+
+  projects.forEach(p => {
+    const ph = p.permit_history;
+    if (!ph) return;
+
+    // Legacy flat-array format: [{date, desc, type}] — not tagged by aspect, so skip when a specific aspect is selected
+    if (Array.isArray(ph)) {
+      if (aspectFilter) return;
+      const LEGACY_MAP = { 'Urbanistic Plan Adopted':'Urbanistički plan', 'Building Permit':'Građevinska dozvola', 'Energy permit':'Energetska dozvola', 'Location Conditions':'Lokacijski uslovi' };
+      ph.forEach(e => {
+        const cat = e && e.type && LEGACY_MAP[e.type];
+        if (!cat) return;
+        const d = parseAnyDate(e.date);
+        if (!d) return;
+        byYear[cat][d.getFullYear()] = (byYear[cat][d.getFullYear()]||0) + 1;
+      });
+      return;
+    }
+    if (typeof ph !== 'object') return;
+
+    Object.keys(ph).forEach(aspect => {
+      if (aspect === '_completed') return;
+      // Combined aspects are stored as "Elektrana / TS" — match on any component
+      if (aspectFilter && aspect.split(' / ').indexOf(aspectFilter) === -1) return;
+      const entries = ph[aspect];
+      if (!Array.isArray(entries) || !entries.length) return;
+
+      const isTimeline = entries.some(e => e && e.type && !e.name);
+      if (isTimeline) {
+        let cat = null, completedTypes = ['Approved'];
+        if (aspect === 'Urbanizam') { cat = 'Urbanistički plan'; completedTypes = ['Approved', 'Usvojen']; }
+        else if (aspect === 'Energetska Dozvola') cat = 'Energetska dozvola';
+        if (!cat) return;
+        entries.forEach(e => {
+          if (!completedTypes.includes(e.type)) return;
+          const d = parseAnyDate(e.date);
+          if (!d) return;
+          byYear[cat][d.getFullYear()] = (byYear[cat][d.getFullYear()]||0) + 1;
+        });
+        return;
+      }
+
+      // Structured named-process aspects (Elektrana, Trafostanica, PRP, OHL, ...)
+      const byCat = {};
+      entries.forEach(e => {
+        if (!e || !e.name) return;
+        const cat = classifyPermitProcessName(e.name);
+        if (!cat) return;
+        (byCat[cat] = byCat[cat] || []).push(e);
+      });
+
+      Object.keys(byCat).forEach(cat => {
+        const list = byCat[cat];
+        // Only the first-ever approval counts (skip later amendments/renewals of the same permit
+        // so a project isn't represented more than once per category)
+        const approvedEntries = list
+          .filter(e => e.date_approved && parseAnyDate(e.date_approved))
+          .sort((a,b) => parseAnyDate(a.date_approved) - parseAnyDate(b.date_approved));
+        if (approvedEntries.length) {
+          const first = approvedEntries[0];
+          const dApp = parseAnyDate(first.date_approved);
+          byYear[cat][dApp.getFullYear()] = (byYear[cat][dApp.getFullYear()]||0) + 1;
+          if (first.date_submitted) {
+            const dSub = parseAnyDate(first.date_submitted);
+            if (dSub && dApp >= dSub) durations[cat].push({ days: daysBetweenDates(dSub, dApp), year: dApp.getFullYear() });
+          }
+        }
+        // Pending = latest (by date_submitted) entry in this category, if none of them got approved
+        // and it wasn't itself rejected (a rejected submission is resolved, not "waiting")
+        const anyApproved = list.some(e => !!e.date_approved);
+        if (!anyApproved) {
+          const withSub = list.filter(e => {
+            if (!e.date_submitted || !parseAnyDate(e.date_submitted)) return false;
+            const rejDates = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
+            return rejDates.length === 0;
+          }).sort((a,b) => parseAnyDate(a.date_submitted) - parseAnyDate(b.date_submitted));
+          if (withSub.length) {
+            const latest = withSub[withSub.length-1];
+            const dSub = parseAnyDate(latest.date_submitted);
+            const key = p.id+'|'+aspect+'|'+cat;
+            pendingMap[key] = { project:p, category:cat, aspect, caseNum: latest.case_num||'', dateSubmitted: latest.date_submitted, daysWaiting: daysBetweenDates(dSub, now) };
+          }
+        }
+      });
+    });
+  });
+
+  return { durations, byYear, pending: Object.values(pendingMap) };
+}
+
 function renderOverviewCharts() {
   const techMW = sumBy(PROJECTS, 'capacity_mw', 'technology');
   const statusCounts = groupBy(PROJECTS, 'status_overall');
@@ -1983,259 +2085,131 @@ function renderCharts2() {
 }
 
 // ========== PERMITTING CHARTS ==========
-let _permLaw = '', _permTech = '';
+let _permLaw = '', _permTech = '', _permAspect = '';
 
-window.setPermLaw = function(law) {
-  _permLaw = law;
-  document.querySelectorAll('.perm-law-btn').forEach(b => b.classList.toggle('active', b.dataset.law === law));
-  renderPermittingCharts();
-};
-window.setPermTech = function(tech) {
-  _permTech = tech;
-  document.querySelectorAll('.perm-tech-btn').forEach(b => b.classList.toggle('active', b.dataset.tech === tech));
+window.setPermAspect = function(aspect) {
+  _permAspect = aspect;
+  document.querySelectorAll('.perm-aspect-btn').forEach(b => b.classList.toggle('active', b.dataset.aspect === aspect));
   renderPermittingCharts();
 };
 
 function renderPermittingCharts() {
-  const PERMIT_ORDER = [
-    'Nothing (inactive)',
-    'Urbanistic Plan in preparation',
-    'Urbanistic Plan Adopted',
-    'Location Conditions',
-    'Energy permit',
-    'Building Permit',
-    'Finished'
-  ];
-  const PERMIT_SHORT = {
-    'Nothing (inactive)':            'Inactive',
-    'Urbanistic Plan in preparation':'UP in prep.',
-    'Urbanistic Plan Adopted':       'UP Adopted',
-    'Location Conditions':           'Location Cond.',
-    'Energy permit':                 'Energy Permit',
-    'Building Permit':               'Building Permit',
-    'Finished':                      'Finished'
-  };
-  const PERMIT_COLORS = [
-    '#475569','#64748b','#3b9eff','#38bdf8','#f5c842','#f97316','#22c55e'
-  ];
-  const LAW_LABELS = {'Old law':'Old Law','New law  1. window':'1st GC','New law  2. window':'2nd GC','New law  3. window':'3rd GC','New law  4. window':'4th GC'};
-  const LAW_COLORS = {'Old law':'#64748b','New law  1. window':'#3b9eff','New law  2. window':'#00e5a0','New law  3. window':'#f5c842','New law  4. window':'#a855f7'};
-  const LAW_ORDER  = ['Old law','New law  1. window','New law  2. window','New law  3. window','New law  4. window'];
-
   const filtered = PROJECTS.filter(p =>
     (!_permLaw  || p.law === _permLaw) &&
     (!_permTech || p.technology.trim() === _permTech)
   );
 
-  // Summary
-  const totalMW = filtered.reduce((s,p) => s + (p.capacity_mw||0), 0);
-  document.getElementById('perm-summary').innerHTML =
-    `<div style="font-size:22px;font-weight:700;color:var(--text)">${Math.round(totalMW).toLocaleString()} MW</div>
-     <div style="font-size:12px;color:var(--muted)">${filtered.length} projects</div>`;
+  renderPermitWaitAnalysis(filtered);
+}
 
-  // Aggregate per permitting status
-  const mwByPhase = {}, cntByPhase = {};
-  PERMIT_ORDER.forEach(s => { mwByPhase[s] = 0; cntByPhase[s] = 0; });
-  filtered.forEach(p => {
-    const s = p.status_permitting || 'Nothing (inactive)';
-    if (mwByPhase[s] !== undefined) { mwByPhase[s] += p.capacity_mw||0; cntByPhase[s]++; }
-  });
+function renderPermitWaitAnalysis(filtered) {
+  const { durations, byYear, pending } = collectPermitPhaseData(filtered, _permAspect);
 
-  const labels = PERMIT_ORDER.map(s => PERMIT_SHORT[s]);
+  const CAT_COLORS = {
+    'Lokacijski uslovi':'#3b9eff', 'Građevinska dozvola':'#f97316',
+    'Urbanistički plan':'#a855f7', 'Energetska dozvola':'#f5c842'
+  };
 
-  // Chart 1: MW per phase
-  makeChart('perm-chart-mw', {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{ data: PERMIT_ORDER.map(s => Math.round(mwByPhase[s])), backgroundColor: PERMIT_COLORS, borderRadius: 6 }]
-    },
-    options: {
-      indexAxis: 'y',
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + ctx.raw.toLocaleString() + ' MW' } } },
-      scales: {
-        x: { ticks: { color: '#64748b' }, grid: { color: '#1e2d47' } },
-        y: { ticks: { color: '#e2e8f0', font: { size: 11 } }, grid: { display: false } }
+  // ── Feature 1: avg/median wait stat cards ──
+  const statsEl = document.getElementById('perm-wait-stats');
+  if (statsEl) {
+    statsEl.innerHTML = PERMIT_DURATION_CATS.map(function(cat) {
+      const vals = durations[cat].map(function(d){ return d.days; }).sort(function(a,b){ return a-b; });
+      if (!vals.length) {
+        return '<div class="stat-card"><div class="stat-label">'+cat+'</div><div class="stat-value" style="font-size:18px;color:var(--muted)">Nema podataka</div></div>';
       }
-    }
-  });
-
-  // Chart 2: Count per phase
-  makeChart('perm-chart-count', {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{ data: PERMIT_ORDER.map(s => cntByPhase[s]), backgroundColor: PERMIT_COLORS, borderRadius: 6 }]
-    },
-    options: {
-      indexAxis: 'y',
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + ctx.raw + ' projects' } } },
-      scales: {
-        x: { ticks: { color: '#64748b' }, grid: { color: '#1e2d47' } },
-        y: { ticks: { color: '#e2e8f0', font: { size: 11 } }, grid: { display: false } }
-      }
-    }
-  });
-
-  // Chart 3: Stacked bar — MW per window × permitting phase
-  const stackDatasets = PERMIT_ORDER.map((phase, i) => ({
-    label: PERMIT_SHORT[phase],
-    data: LAW_ORDER.map(law => {
-      return Math.round(PROJECTS
-        .filter(p => p.law === law && p.status_permitting === phase && (!_permTech || p.technology.trim() === _permTech))
-        .reduce((s,p) => s + (p.capacity_mw||0), 0));
-    }),
-    backgroundColor: PERMIT_COLORS[i],
-    borderRadius: 4
-  }));
-
-  makeChart('perm-chart-stack', {
-    type: 'bar',
-    data: {
-      labels: LAW_ORDER.map(k => LAW_LABELS[k]),
-      datasets: stackDatasets
-    },
-    options: {
-      plugins: { legend: { labels: { color: '#64748b', font: { size: 11 } } }, tooltip: { callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + ctx.raw.toLocaleString() + ' MW' } } },
-      scales: {
-        x: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e2d47' } },
-        y: { stacked: true, ticks: { color: '#64748b' }, grid: { color: '#1e2d47' } }
-      }
-    }
-  });
-
-  // ── GRAĐEVINSKA DOZVOLA — ELEKTRANA ─────────────────────
-  const norm = function(s) { return (s||'').toLowerCase().replace(/đ/g,'dj').replace(/č/g,'c').replace(/ć/g,'c').replace(/š/g,'s').replace(/ž/g,'z'); };
-
-  // Vraća { status, date_approved } za prvu GD u aspektu "Elektrana"
-  function getGDInfo(p) {
-    const ph = p.permit_history;
-    if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return { status:'no_data', date_approved:null };
-    const key = Object.keys(ph).find(function(k) { return k !== '_completed' && norm(k).includes('elektran'); });
-    if (!key) return { status:'no_data', date_approved:null };
-    const procs = ph[key];
-    if (!Array.isArray(procs) || !procs.length) return { status:'no_data', date_approved:null };
-    const gdAll = procs.filter(function(e) { return norm(e.name).includes('gradjevinsk'); });
-    if (!gdAll.length) return { status:'no_data', date_approved:null };
-    // Ako ijedna GD ima date_approved → odobrena (bez obzira na prethodna odbijanja)
-    const gdApproved = gdAll.find(function(e) { return !!e.date_approved; });
-    if (gdApproved) return { status:'approved', date_approved: gdApproved.date_approved };
-    const gdRejected = gdAll.find(function(e) {
-      const r = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
-      return r.length > 0;
-    });
-    if (gdRejected) return { status:'rejected', date_approved:null };
-    const gdSubmitted = gdAll.find(function(e) { return !!e.date_submitted; });
-    if (gdSubmitted) return { status:'submitted', date_approved:null };
-    return { status:'pending', date_approved:null };
+      const avg = Math.round(vals.reduce(function(s,v){ return s+v; },0) / vals.length);
+      const median = vals[Math.floor(vals.length/2)];
+      return '<div class="stat-card"><div class="stat-label">'+cat+'</div>'
+        +'<div class="stat-value" style="color:'+CAT_COLORS[cat]+'">'+formatDurationDays(avg)+'</div>'
+        +'<div class="stat-sub">prosek · medijana '+formatDurationDays(median)+' · n='+vals.length+'</div></div>';
+    }).join('');
   }
 
-  // Primenjuje isti tech/law filter
-  const gdProjects = PROJECTS.filter(function(p) {
-    return (!_permLaw || p.law === _permLaw) && (!_permTech || p.technology.trim() === _permTech);
-  });
-
-  const gdBuckets = { approved:[] };
-  const gdByYear = {};  // year → { count, mw }
-  gdProjects.forEach(function(p) {
-    const info = getGDInfo(p);
-    if (info.status === 'approved') gdBuckets.approved.push(p);
-    if (info.status === 'approved' && info.date_approved) {
-      const parts = info.date_approved.split('/');
-      const year = parts.length === 3 ? parts[2] : null;
-      if (year && year.length === 4) {
-        if (!gdByYear[year]) gdByYear[year] = { count: 0, mw: 0, projs: [] };
-        gdByYear[year].count++;
-        gdByYear[year].mw += p.capacity_mw || 0;
-        gdByYear[year].projs.push(p);
-      }
-    }
-  });
-
-  // Dual-axis line chart po godinama
-  const years = Object.keys(gdByYear).sort();
-  makeChart('perm-chart-gd-years', {
+  // ── Feature 2: avg wait per year, per duration category ──
+  const yearsWithData = {};
+  PERMIT_DURATION_CATS.forEach(function(cat) { durations[cat].forEach(function(d){ yearsWithData[d.year] = true; }); });
+  const waitYears = Object.keys(yearsWithData).sort();
+  makeChart('perm-chart-wait-trend', {
     type: 'line',
     data: {
-      labels: years,
-      datasets: [
-        {
-          label: 'Broj projekata',
-          data: years.map(function(y) { return gdByYear[y].count; }),
-          borderColor: '#00e5a0',
-          backgroundColor: '#00e5a022',
-          borderWidth: 2.5,
-          pointRadius: 5,
-          pointBackgroundColor: '#00e5a0',
-          tension: 0.3,
-          fill: false,
-          yAxisID: 'y'
-        },
-        {
-          label: 'Snaga (MW)',
-          data: years.map(function(y) { return Math.round(gdByYear[y].mw); }),
-          borderColor: '#3b9eff',
-          backgroundColor: '#3b9eff22',
-          borderWidth: 2.5,
-          pointRadius: 5,
-          pointBackgroundColor: '#3b9eff',
-          tension: 0.3,
-          fill: false,
-          yAxisID: 'y2'
-        }
-      ]
+      labels: waitYears,
+      datasets: PERMIT_DURATION_CATS.map(function(cat) {
+        return {
+          label: cat,
+          data: waitYears.map(function(y) {
+            const vals = durations[cat].filter(function(d){ return String(d.year) === y; }).map(function(d){ return d.days; });
+            return vals.length ? Math.round(vals.reduce(function(s,v){ return s+v; },0)/vals.length) : null;
+          }),
+          borderColor: CAT_COLORS[cat], backgroundColor: CAT_COLORS[cat]+'22',
+          borderWidth: 2.5, pointRadius: 4, tension: 0.3, spanGaps: true
+        };
+      })
     },
     options: {
       interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { labels: { color: '#94a3b8', font: { size: 12 } } },
-        tooltip: { callbacks: {
-          label: function(ctx) {
-            return ctx.dataset.label + ': ' + ctx.raw + (ctx.dataset.yAxisID === 'y' ? (ctx.raw === 1 ? ' projekat' : ' projekata') : ' MW');
-          }
-        }}
-      },
+      plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+        tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label+': '+ctx.raw+' dana'; } } } },
       scales: {
         x: { ticks: { color: '#e2e8f0' }, grid: { color: '#1e2d47' } },
-        y: {
-          type: 'linear', position: 'left',
-          ticks: { color: '#00e5a0', stepSize: 1 },
-          grid: { color: '#1e2d4766' },
-          beginAtZero: true,
-          title: { display: true, text: 'Broj projekata', color: '#00e5a0', font: { size: 11 } }
-        },
-        y2: {
-          type: 'linear', position: 'right',
-          ticks: { color: '#3b9eff' },
-          grid: { drawOnChartArea: false },
-          beginAtZero: true,
-          title: { display: true, text: 'MW', color: '#3b9eff', font: { size: 11 } }
-        }
+        y: { beginAtZero: true, ticks: { color: '#64748b' }, grid: { color: '#1e2d47' }, title: { display: true, text: 'dana', color: '#64748b', font: { size: 11 } } }
       }
     }
   });
 
-  // Lista odobrenih GD projekata
-  const listEl = document.getElementById('gd-approved-list');
-  if (listEl) {
-    const techColors = { Wind:'#3b9eff', Solar:'#f5c842', Hybrid:'#a855f7', BESS:'#f97316' };
-    if (!gdBuckets.approved.length) {
-      listEl.innerHTML = '';
+  // ── Feature 3: count of permits obtained per year, all phases ──
+  const allYears = {};
+  PERMIT_PHASE_CATS.forEach(function(cat) { Object.keys(byYear[cat]).forEach(function(y){ allYears[y] = true; }); });
+  const countYears = Object.keys(allYears).sort();
+  makeChart('perm-chart-year-all', {
+    type: 'line',
+    data: {
+      labels: countYears,
+      datasets: PERMIT_PHASE_CATS.map(function(cat) {
+        return {
+          label: cat,
+          data: countYears.map(function(y) { return byYear[cat][y] || 0; }),
+          borderColor: CAT_COLORS[cat], backgroundColor: CAT_COLORS[cat]+'22',
+          borderWidth: 2.5, pointRadius: 4, tension: 0.3
+        };
+      })
+    },
+    options: {
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+        tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label+': '+ctx.raw; } } } },
+      scales: {
+        x: { ticks: { color: '#e2e8f0' }, grid: { color: '#1e2d47' } },
+        y: { beginAtZero: true, ticks: { color: '#64748b', stepSize: 1 }, grid: { color: '#1e2d47' } }
+      }
+    }
+  });
+
+  // ── Feature 5: pending / backlog table ──
+  const pendingEl = document.getElementById('perm-pending-list');
+  if (pendingEl) {
+    const sorted = pending.slice().sort(function(a,b){ return b.daysWaiting - a.daysWaiting; });
+    if (!sorted.length) {
+      pendingEl.innerHTML = '<div style="font-size:12px;color:var(--muted);font-style:italic;padding:8px 0">Nema projekata u čekanju za izabrani filter.</div>';
     } else {
-      listEl.innerHTML = '<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:#22c55e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Odobrena GD ('+gdBuckets.approved.length+')</div>'
-        +'<div style="display:flex;flex-wrap:wrap;gap:8px">'
-        + gdBuckets.approved.map(function(p) {
-            const col = techColors[p.technology.trim()] || '#94a3b8';
-            return '<div style="background:var(--surface2);border:1px solid #22c55e33;border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="openProjSummary('+p.id+')">'
+      pendingEl.innerHTML = '<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">'
+        + sorted.map(function(row) {
+            const col = CAT_COLORS[row.category] || '#94a3b8';
+            const urgent = row.daysWaiting > 180;
+            return '<div style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 14px;cursor:pointer" onclick="openProjSummary('+row.project.id+')">'
               +'<div style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></div>'
-              +'<div style="font-size:12px;font-weight:600;color:var(--text)">'+p.name+'</div>'
-              +'<div style="font-size:11px;color:var(--muted)">'+p.capacity_mw+' MW</div>'
-              +'</div>';
+              +'<div style="flex:1;min-width:0">'
+              +'<div style="font-size:13px;font-weight:600;color:var(--text)">'+row.project.name+'</div>'
+              +'<div style="font-size:11px;color:var(--muted)">'+row.category+' · '+row.aspect+(row.caseNum?' · '+row.caseNum:'')+'</div>'
+              +'</div>'
+              +'<div style="text-align:right;flex-shrink:0">'
+              +'<div style="font-size:13px;font-weight:700;color:'+(urgent?'#ef4444':'var(--text)')+'">'+formatDurationDays(row.daysWaiting)+'</div>'
+              +'<div style="font-size:10px;color:var(--muted)">podneto '+row.dateSubmitted+'</div>'
+              +'</div></div>';
           }).join('')
-        +'</div></div>';
+        +'</div>';
     }
   }
-  // ────────────────────────────────────────────────────────
 }
 
 // ========== MAP (Leaflet.js) ==========
@@ -3546,6 +3520,7 @@ function openProjSummary(id) {
     kpiBox('Status', p.status_overall, sc) +
     kpiBox('Probability', prob||'—', prob==='HIGH'?'#22c55e':prob==='LOW'?'#ef4444':'#64748b');
 
+  const devStart = getDevelopmentStartDate(p);
   document.getElementById('psm-details').innerHTML =
     detailBox('Technology', '<span style="color:'+tc+'">'+p.technology.trim()+'</span>') +
     detailBox('Regulatory Law', LAW_LABELS[p.law]||p.law||'—') +
@@ -3553,7 +3528,8 @@ function openProjSummary(id) {
     detailBox('CFD / Support', p.cfd||'—') +
     detailBox('Energetska Dozvola', p.energy_license
       ? '<span style="color:'+(p.energy_license==='Da'?'#22c55e':p.energy_license==='U toku'?'#f5c842':'#ef4444')+'">'+p.energy_license+'</span>'
-      : '—');
+      : '—') +
+    detailBox('U razvoju od (RJU)', devStart||'—');
 
   // RTB prediction (HIGH only)
   renderRtbPrediction(p);
@@ -4410,6 +4386,18 @@ function computePermitStatus(p) {
   return null;
 }
 
+// RJU (Rani javni uvid) marks the start of a project's development — returns the earliest RJU date string (dd/mm/yyyy), or null
+function getDevelopmentStartDate(p) {
+  const ph = p.permit_history;
+  if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return null;
+  const urb = ph['Urbanizam'];
+  if (!Array.isArray(urb) || !urb.length) return null;
+  const rjuEntries = urb
+    .filter(function(e) { return e.type === 'Rani Javni Uvid' && e.date && parseAnyDate(e.date); })
+    .sort(function(a,b) { return parseAnyDate(a.date) - parseAnyDate(b.date); });
+  return rjuEntries.length ? rjuEntries[0].date : null;
+}
+
 // After load: auto-sync status_permitting from permit_history and save to DB
 async function syncPermitStatuses() {
   const updates = [];
@@ -4448,6 +4436,44 @@ async function refreshPermitStatusForProject(p) {
   }
 }
 
+window.copyCaseNum = function(text, btn) {
+  const restore = function(ok) {
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = ok ? '✓' : '✕';
+    setTimeout(function(){ btn.textContent = orig; }, 1200);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){ restore(true); }).catch(function(){ restore(false); });
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+    restore(ok);
+  }
+};
+
+// Urbanizam entries are ordered by process stage, not by date — whatever gets logged
+// (even out of chronological order, or missing a stage) slots into this fixed sequence
+const URBANIZAM_STAGE_ORDER = ['Odluka o Izradi', 'Rani Javni Uvid', 'Javni Uvid', 'Usvojen'];
+function sortPermitEntries(asp, entries) {
+  const arr = entries.slice();
+  if (asp === 'Urbanizam') {
+    return arr.sort(function(a, b) {
+      const ia = URBANIZAM_STAGE_ORDER.indexOf(a.type);
+      const ib = URBANIZAM_STAGE_ORDER.indexOf(b.type);
+      const oa = ia === -1 ? URBANIZAM_STAGE_ORDER.length : ia;
+      const ob = ib === -1 ? URBANIZAM_STAGE_ORDER.length : ib;
+      if (oa !== ob) return oa - ob;
+      return (a.date||'').localeCompare(b.date||'');
+    });
+  }
+  return arr.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+}
+
 function renderPermitHistory(p) {
   const isAdmin = EDIT_USERS.has(currentUser);
   if (!p.permit_history || Array.isArray(p.permit_history)) {
@@ -4461,7 +4487,10 @@ function renderPermitHistory(p) {
   const completed = p.permit_history._completed;
 
   const aspects = Object.keys(p.permit_history).filter(function(k){ return k !== '_completed'; });
-  const statusCol = { Submitted:'#f5c842', Approved:'#22c55e', Rejected:'#ef4444' };
+  const statusCol = {
+    Submitted:'#f5c842', Approved:'#22c55e', Rejected:'#ef4444',
+    'Odluka o Izradi':'#94a3b8', 'Rani Javni Uvid':'#3b9eff', 'Javni Uvid':'#f5c842', 'Usvojen':'#22c55e'
+  };
 
   const aspId = function(asp) { return 'asp_'+asp.replace(/[^a-zA-Z0-9]/g,'_'); };
 
@@ -4472,7 +4501,7 @@ function renderPermitHistory(p) {
     let rows = '';
 
     if (!isCustom) {
-      const sorted = entries.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+      const sorted = sortPermitEntries(asp, entries);
       rows = sorted.length === 0
         ? '<div style="font-size:12px;color:var(--muted);padding:6px 0 4px;font-style:italic">No entries yet.</div>'
         : sorted.map(function(e, i) {
@@ -4487,7 +4516,9 @@ function renderPermitHistory(p) {
               +'<div style="font-size:13px;font-weight:700;color:'+col+'">'+e.type+'</div>'
               +'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:var(--text)">'+(e.date||'')+'</div>'
               +'</div>'
-              +(e.case_num?'<div style="font-size:11px;color:var(--accent);margin-bottom:2px">📋 '+e.case_num+'</div>':'')
+              +(e.case_num?'<div style="font-size:11px;color:var(--accent);margin-bottom:2px;display:flex;align-items:center;gap:6px">📋 '+e.case_num
+                +'<button onclick="copyCaseNum(\''+e.case_num.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',this)" title="Kopiraj broj predmeta" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer;padding:0;line-height:1" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'#475569\'">⧉</button>'
+                +'</div>':'')
               +(e.desc?'<div style="font-size:12px;color:var(--muted)">'+e.desc+'</div>':'')
               +(isAdmin?'<div style="display:flex;gap:10px;margin-top:4px">'
                 +'<button onclick="showEditPermitForm(\''+asp.replace(/'/g,"\\'")+'\',' +i+')" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'#475569\'">✏️ Edit</button>'
@@ -4504,31 +4535,44 @@ function renderPermitHistory(p) {
             const hasRejected = rejDates.length > 0;
             const statusColor = hasApproved ? '#22c55e' : hasRejected ? '#ef4444' : e.date_submitted ? '#f5c842' : '#64748b';
             const statusLabel = hasApproved ? 'Approved' : hasRejected ? 'Rejected' : e.date_submitted ? 'Submitted' : 'Pending';
+            const parseDate = function(s) {
+              const p = (s||'').split('/');
+              return p.length === 3 ? new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0])) : null;
+            };
+            const durLabel = function(days) {
+              const years = Math.floor(days / 365);
+              const months = Math.floor((days % 365) / 30);
+              const remDays = days % 365 % 30;
+              if (years > 0) return years + ' god. ' + months + ' mes. ' + remDays + ' dana';
+              if (months > 0) return months + ' mes. ' + remDays + ' dana';
+              return remDays + ' dana';
+            };
             // Calculate duration submitted → approved
             let durationHtml = '';
             if (e.date_submitted && e.date_approved) {
-              const parseDate = function(s) {
-                const p = s.split('/');
-                return p.length === 3 ? new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0])) : null;
-              };
               const d1 = parseDate(e.date_submitted), d2 = parseDate(e.date_approved);
               if (d1 && d2 && d2 >= d1) {
                 const days = Math.round((d2 - d1) / 86400000);
-                let durLabel = '';
-                const years = Math.floor(days / 365);
-                const months = Math.floor((days % 365) / 30);
-                const remDays = days % 365 % 30;
-                if (years > 0) {
-                  durLabel = years + ' god. ' + months + ' mes. ' + remDays + ' dana';
-                } else if (months > 0) {
-                  durLabel = months + ' mes. ' + remDays + ' dana';
-                } else {
-                  durLabel = remDays + ' dana';
-                }
                 durationHtml = '<div style="display:inline-flex;align-items:center;gap:4px;background:#22c55e18;border:1px solid #22c55e33;border-radius:8px;padding:2px 8px;margin-top:6px">'
                   +'<span style="font-size:11px;color:var(--muted)">⏱ Trajanje:</span>'
-                  +'<span style="font-size:12px;font-weight:700;color:#22c55e">'+durLabel+'</span>'
+                  +'<span style="font-size:12px;font-weight:700;color:#22c55e">'+durLabel(days)+'</span>'
                   +'</div>';
+              }
+            } else if (e.date_submitted && hasRejected) {
+              // Also show duration for LU/GD/Prijava radova rejected outright (submitted → first rejection)
+              const n = normSrLatin(e.name);
+              const isTrackedProcess = n.includes('lokacijsk') || n.includes('gradjevinsk') || n.includes('prijava radova');
+              if (isTrackedProcess) {
+                const d1 = parseDate(e.date_submitted);
+                const rejParsed = rejDates.map(parseDate).filter(function(d){ return !!d; }).sort(function(a,b){ return a-b; });
+                const d2 = rejParsed[0];
+                if (d1 && d2 && d2 >= d1) {
+                  const days = Math.round((d2 - d1) / 86400000);
+                  durationHtml = '<div style="display:inline-flex;align-items:center;gap:4px;background:#ef444418;border:1px solid #ef444433;border-radius:8px;padding:2px 8px;margin-top:6px">'
+                    +'<span style="font-size:11px;color:var(--muted)">⏱ Trajanje do odbijanja:</span>'
+                    +'<span style="font-size:12px;font-weight:700;color:#ef4444">'+durLabel(days)+'</span>'
+                    +'</div>';
+                }
               }
             }
             return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">'
@@ -4536,7 +4580,9 @@ function renderPermitHistory(p) {
               +'<div style="font-size:13px;font-weight:700;color:var(--text)">'+(e.name||'Process')+'</div>'
               +'<span style="font-size:11px;font-weight:600;color:'+statusColor+';background:'+statusColor+'15;padding:2px 8px;border-radius:10px">'+statusLabel+'</span>'
               +'</div>'
-              +(e.case_num?'<div style="font-size:11px;color:var(--accent);margin-bottom:6px">📋 '+e.case_num+'</div>':'')
+              +(e.case_num?'<div style="font-size:11px;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px">📋 '+e.case_num
+                +'<button onclick="copyCaseNum(\''+e.case_num.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',this)" title="Kopiraj broj predmeta" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer;padding:0;line-height:1" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'#475569\'">⧉</button>'
+                +'</div>':'')
               +'<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:4px">'
               +(e.date_submitted?'<div style="font-size:11px"><span style="color:var(--muted)">Podneto: </span><span style="color:#f5c842;font-weight:600">'+e.date_submitted+'</span></div>':'')
               +rejDates.map(function(d,ri){ return '<div style="font-size:11px"><span style="color:var(--muted)">Odbijeno'+(rejDates.length>1?' '+(ri+1):'')+': </span><span style="color:#ef4444;font-weight:600">'+d+'</span></div>'; }).join('')
@@ -4550,6 +4596,29 @@ function renderPermitHistory(p) {
                 +'</div>':'')
               +'</div>';
           }).join('');
+    }
+
+    // Urbanizam: total duration of the process, Odluka o Izradi → Usvojen PDR
+    let urbDurationHtml = '';
+    if (asp === 'Urbanizam') {
+      const stageEntry = function(type) {
+        const matches = entries
+          .filter(function(e) { return e.type === type && e.date && parseAnyDate(e.date); })
+          .sort(function(a,b) { return parseAnyDate(a.date) - parseAnyDate(b.date); });
+        return matches.length ? matches[0] : null;
+      };
+      const startE = stageEntry('Odluka o Izradi');
+      const endE = stageEntry('Usvojen');
+      if (startE && endE) {
+        const d1 = parseAnyDate(startE.date), d2 = parseAnyDate(endE.date);
+        if (d2 >= d1) {
+          const days = Math.round((d2 - d1) / 86400000);
+          urbDurationHtml = '<div style="display:inline-flex;align-items:center;gap:6px;background:#22c55e18;border:1px solid #22c55e33;border-radius:8px;padding:5px 10px;margin-top:10px">'
+            +'<span style="font-size:11px;color:var(--muted)">⏱ Trajanje postupka (Odluka o Izradi → Usvojen PDR):</span>'
+            +'<span style="font-size:12px;font-weight:700;color:#22c55e">'+formatDurationDays(days)+'</span>'
+            +'</div>';
+        }
+      }
     }
 
     // Inline form (hidden by default, shown when + clicked)
@@ -4583,10 +4652,14 @@ function renderPermitHistory(p) {
           +'<div id="formtitle_'+aid+'" style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:10px">Add Entry</div>'
           +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">'
           +'<div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Datum (dd/mm/yyyy)</div><input id="pdate_'+aid+'" type="text" placeholder="npr. 15/03/2025" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
-          +'<div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Status</div><select id="ptype_'+aid+'" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px"><option>Submitted</option><option>Approved</option><option>Rejected</option></select></div>'
+          +'<div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Status</div><select id="ptype_'+aid+'" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px">'
+          +(PERMIT_TYPE_OPTIONS_BY_ASPECT[asp] || PERMIT_TYPE_OPTIONS_DEFAULT).map(function(o){ return '<option value="'+o.value+'">'+o.label+'</option>'; }).join('')
+          +'</select></div>'
           +'</div>'
-          +'<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Broj predmeta</div><input id="pcase_'+aid+'" type="text" placeholder="npr. 350-123/2025" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
-          +'<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Opis</div><input id="pdesc_'+aid+'" type="text" placeholder="Opis aktivnosti..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+          +(asp === 'Energetska Dozvola' ? '' :
+            '<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Broj predmeta</div><input id="pcase_'+aid+'" type="text" placeholder="npr. 350-123/2025" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>'
+            +'<div style="margin-bottom:10px"><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Opis</div><input id="pdesc_'+aid+'" type="text" placeholder="Opis aktivnosti..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box"></div>')
+          +(asp === 'Energetska Dozvola' ? '<input id="pcase_'+aid+'" type="hidden"><input id="pdesc_'+aid+'" type="hidden">' : '')
           +'<div style="display:flex;gap:8px">'
           +'<button onclick="cancelInlineForm(\''+aid+'\')" style="flex:1;background:transparent;border:1px solid var(--border);border-radius:7px;padding:7px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>'
           +'<button id="fsave_'+aid+'" onclick="saveInlineEntry(\''+asp.replace(/'/g,"\\'")+'\',\''+aid+'\')" style="flex:1;background:var(--accent);border:none;border-radius:7px;padding:7px;color:#0b0f1a;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">Add Entry</button>'
@@ -4628,7 +4701,7 @@ function renderPermitHistory(p) {
             +'<button onclick="document.getElementById(\'rename_'+aid+'\').style.display=\'none\'" style="background:transparent;border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--muted);font-size:12px;cursor:pointer">Otkaži</button>'
             +'</div></div>'
           : '')
-        + rows + addBtn + inlineForm
+        + rows + urbDurationHtml + addBtn + inlineForm
       +'</div>'
     +'</div>';
   }).join('');
@@ -4891,26 +4964,55 @@ function cancelPermitForm() {
   document.getElementById('permit-save-btn').onclick = addPermitEntry;
 }
 
+const PERMIT_TYPE_OPTIONS_BY_ASPECT = {
+  'Urbanizam': [
+    { value: 'Odluka o Izradi', label: 'Odluka o Izradi' },
+    { value: 'Rani Javni Uvid', label: 'Rani Javni Uvid' },
+    { value: 'Javni Uvid', label: 'Javni Uvid' },
+    { value: 'Usvojen', label: 'Usvojen' }
+  ]
+};
+const PERMIT_TYPE_OPTIONS_DEFAULT = [
+  { value: 'Submitted', label: 'Submitted' },
+  { value: 'Approved', label: 'Approved' },
+  { value: 'Rejected', label: 'Rejected' }
+];
+
+// Adjusts the shared permit-entry form to the aspect being edited:
+// Urbanizam gets RJU/PDR status options, Energetska Dozvola only needs a date (no case/desc)
+function configurePermitFormForAspect(asp) {
+  const opts = PERMIT_TYPE_OPTIONS_BY_ASPECT[asp] || PERMIT_TYPE_OPTIONS_DEFAULT;
+  document.getElementById('permit-type').innerHTML = opts.map(function(o) {
+    return '<option value="'+o.value+'">'+o.label+'</option>';
+  }).join('');
+  const hideCaseDesc = asp === 'Energetska Dozvola';
+  document.getElementById('permit-case-row').style.display = hideCaseDesc ? 'none' : '';
+  document.getElementById('permit-desc-row').style.display = hideCaseDesc ? 'none' : '';
+}
+
 function showAddPermitForm(asp) {
   _editPermitIdx = null; _editPermitAsp = asp;
   document.getElementById('permit-form-title').textContent = 'Add Permit Entry';
   document.getElementById('permit-save-btn').textContent = 'Add Entry';
   document.getElementById('permit-save-btn').onclick = addPermitEntry;
+  configurePermitFormForAspect(asp);
   document.getElementById('permit-date').value = '';
   document.getElementById('permit-case').value = '';
   document.getElementById('permit-desc').value = '';
+  if (asp === 'Energetska Dozvola') document.getElementById('permit-type').value = 'Approved';
   document.getElementById('psm-aspect-add-form').dataset.aspect = asp;
   document.getElementById('psm-aspect-add-form').style.display = 'block';
 }
 
 function showEditPermitForm(asp, idx) {
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
-  const sorted = (p.permit_history[asp]||[]).slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  const sorted = sortPermitEntries(asp, p.permit_history[asp]||[]);
   const e = sorted[idx];
   _editPermitIdx = idx; _editPermitAsp = asp;
   document.getElementById('permit-form-title').textContent = 'Edit Permit Entry';
   document.getElementById('permit-save-btn').textContent = 'Save Changes';
   document.getElementById('permit-save-btn').onclick = savePermitEdit;
+  configurePermitFormForAspect(asp);
   document.getElementById('permit-date').value = e.date || '';
   document.getElementById('permit-type').value = e.type || 'Submitted';
   document.getElementById('permit-case').value = e.case_num || '';
@@ -4923,7 +5025,7 @@ async function savePermitEdit() {
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
   if (!p) return;
   const asp = _editPermitAsp;
-  const sorted = (p.permit_history[asp]||[]).slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  const sorted = sortPermitEntries(asp, p.permit_history[asp]||[]);
   const original = sorted[_editPermitIdx];
   const realIdx = p.permit_history[asp].indexOf(original);
   if (realIdx === -1) return;
@@ -4969,7 +5071,7 @@ async function addPermitEntry() {
 async function deletePermitEntry(asp, idx) {
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
   if (!p || !p.permit_history[asp]) return;
-  const sorted = p.permit_history[asp].slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  const sorted = sortPermitEntries(asp, p.permit_history[asp]);
   const toRemove = sorted[idx];
   p.permit_history[asp] = p.permit_history[asp].filter(function(e){ return e !== toRemove; });
   try {
@@ -6080,11 +6182,11 @@ function initApp() {
               </select>
             </div>
           </div>
-          <div style="margin-bottom:10px">
+          <div id="permit-case-row" style="margin-bottom:10px">
             <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Broj predmeta</div>
             <input id="permit-case" type="text" placeholder="npr. 350-123/2025-01" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
           </div>
-          <div style="margin-bottom:10px">
+          <div id="permit-desc-row" style="margin-bottom:10px">
             <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Opis</div>
             <input id="permit-desc" type="text" placeholder="Opis aktivnosti..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;box-sizing:border-box">
           </div>
