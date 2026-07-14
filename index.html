@@ -1890,8 +1890,9 @@ function collectPermitPhaseData(projects, aspectFilter) {
 
     Object.keys(ph).forEach(aspect => {
       if (aspect === '_completed') return;
-      // Combined aspects are stored as "Elektrana / TS" — match on any component
-      if (aspectFilter && aspect.split(' / ').indexOf(aspectFilter) === -1) return;
+      // Combined aspects are stored as "Elektrana / TS" — match on any component.
+      // Urbanizam/Energetska Dozvola are project-wide (not tied to a structural aspect), so the filter never excludes them.
+      if (aspectFilter && !DEFAULT_ASPECTS.includes(aspect) && aspect.split(' / ').indexOf(aspectFilter) === -1) return;
       const entries = ph[aspect];
       if (!Array.isArray(entries) || !entries.length) return;
 
