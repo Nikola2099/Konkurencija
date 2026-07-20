@@ -1290,11 +1290,31 @@
     <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Prosečno vreme čekanja, trend kroz godine i projekti trenutno u proceduri (iz Permitting → svi aspekti)</div>
 
     <!-- Aspect filter -->
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px" id="perm-aspect-btns">
-      <button class="perm-aspect-btn active" data-aspect="" onclick="setPermAspect('')">All</button>
-      <button class="perm-aspect-btn" data-aspect="Elektrana" onclick="setPermAspect('Elektrana')">Elektrana</button>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="perm-aspect-btns">
+      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px">Aspekt</span>
+      <button class="perm-aspect-btn active" data-aspect="Elektrana" onclick="setPermAspect('Elektrana')">Elektrana</button>
       <button class="perm-aspect-btn" data-aspect="TS" onclick="setPermAspect('TS')">TS</button>
-      <button class="perm-aspect-btn" data-aspect="OHL" onclick="setPermAspect('OHL')">OHL</button>
+    </div>
+
+    <!-- Law filter -->
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="perm-law-btns">
+      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px">Zakon</span>
+      <button class="perm-aspect-btn active" data-law="" onclick="setPermLaw('')">All</button>
+      <button class="perm-aspect-btn" data-law="Old law" onclick="setPermLaw('Old law')">Old Law</button>
+      <button class="perm-aspect-btn" data-law="New law  1. window" onclick="setPermLaw('New law  1. window')">1. Prozor</button>
+      <button class="perm-aspect-btn" data-law="New law  2. window" onclick="setPermLaw('New law  2. window')">2. Prozor</button>
+      <button class="perm-aspect-btn" data-law="New law  3. window" onclick="setPermLaw('New law  3. window')">3. Prozor</button>
+      <button class="perm-aspect-btn" data-law="New law  4. window" onclick="setPermLaw('New law  4. window')">4. Prozor</button>
+    </div>
+
+    <!-- Technology filter -->
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:20px" id="perm-tech-btns">
+      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px">Tehnologija</span>
+      <button class="perm-aspect-btn active" data-tech="" onclick="setPermTech('')">All</button>
+      <button class="perm-aspect-btn" data-tech="Wind" onclick="setPermTech('Wind')">Wind</button>
+      <button class="perm-aspect-btn" data-tech="Solar" onclick="setPermTech('Solar')">Solar</button>
+      <button class="perm-aspect-btn" data-tech="Hybrid" onclick="setPermTech('Hybrid')">Hybrid</button>
+      <button class="perm-aspect-btn" data-tech="BESS" onclick="setPermTech('BESS')">BESS</button>
     </div>
 
     <!-- Stat cards: avg/median wait per phase -->
@@ -1860,12 +1880,14 @@ function formatDurationDays(days) {
 }
 
 // Walks permit_history of the given (already filtered) projects and returns:
-//  - durations[cat] = [{days, year}]           (only for cats with reliable submit+approve dates)
+//  - durations[cat] = [{days, year, project}]  (only for cats with reliable submit+approve dates)
 //  - byYear[cat][year] = count of permits obtained that year
+//  - byYearProjects[cat][year] = [project names] of permits obtained that year
 //  - pending = [{project, category, aspect, caseNum, dateSubmitted, daysWaiting}]
 function collectPermitPhaseData(projects, aspectFilter) {
   const durations = {}; PERMIT_DURATION_CATS.forEach(c => durations[c] = []);
   const byYear = {}; PERMIT_PHASE_CATS.forEach(c => byYear[c] = {});
+  const byYearProjects = {}; PERMIT_PHASE_CATS.forEach(c => byYearProjects[c] = {});
   const pendingMap = {};
   const now = new Date();
 
@@ -1882,7 +1904,9 @@ function collectPermitPhaseData(projects, aspectFilter) {
         if (!cat) return;
         const d = parseAnyDate(e.date);
         if (!d) return;
-        byYear[cat][d.getFullYear()] = (byYear[cat][d.getFullYear()]||0) + 1;
+        const y = d.getFullYear();
+        byYear[cat][y] = (byYear[cat][y]||0) + 1;
+        (byYearProjects[cat][y] = byYearProjects[cat][y] || []).push(p.name);
       });
       return;
     }
@@ -1906,7 +1930,9 @@ function collectPermitPhaseData(projects, aspectFilter) {
           if (!completedTypes.includes(e.type)) return;
           const d = parseAnyDate(e.date);
           if (!d) return;
-          byYear[cat][d.getFullYear()] = (byYear[cat][d.getFullYear()]||0) + 1;
+          const y = d.getFullYear();
+          byYear[cat][y] = (byYear[cat][y]||0) + 1;
+          (byYearProjects[cat][y] = byYearProjects[cat][y] || []).push(p.name);
         });
         return;
       }
@@ -1930,33 +1956,35 @@ function collectPermitPhaseData(projects, aspectFilter) {
         if (approvedEntries.length) {
           const first = approvedEntries[0];
           const dApp = parseAnyDate(first.date_approved);
-          byYear[cat][dApp.getFullYear()] = (byYear[cat][dApp.getFullYear()]||0) + 1;
+          const yApp = dApp.getFullYear();
+          byYear[cat][yApp] = (byYear[cat][yApp]||0) + 1;
+          (byYearProjects[cat][yApp] = byYearProjects[cat][yApp] || []).push(p.name);
           if (first.date_submitted) {
             const dSub = parseAnyDate(first.date_submitted);
-            if (dSub && dApp >= dSub) durations[cat].push({ days: daysBetweenDates(dSub, dApp), year: dApp.getFullYear() });
+            if (dSub && dApp >= dSub) durations[cat].push({ days: daysBetweenDates(dSub, dApp), year: yApp, project: p.name });
           }
         }
-        // Pending = latest (by date_submitted) entry in this category, if none of them got approved
-        // and it wasn't itself rejected (a rejected submission is resolved, not "waiting")
-        const anyApproved = list.some(e => !!e.date_approved);
-        if (!anyApproved) {
-          const withSub = list.filter(e => {
-            if (!e.date_submitted || !parseAnyDate(e.date_submitted)) return false;
-            const rejDates = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
-            return rejDates.length === 0;
-          }).sort((a,b) => parseAnyDate(a.date_submitted) - parseAnyDate(b.date_submitted));
-          if (withSub.length) {
-            const latest = withSub[withSub.length-1];
-            const dSub = parseAnyDate(latest.date_submitted);
-            const key = p.id+'|'+aspect+'|'+cat;
-            pendingMap[key] = { project:p, category:cat, aspect, caseNum: latest.case_num||'', dateSubmitted: latest.date_submitted, daysWaiting: daysBetweenDates(dSub, now) };
-          }
+        // Pending = latest (by date_submitted) entry in this category that itself has no approval yet
+        // and wasn't itself rejected (a rejected submission is resolved, not "waiting"). Checked per
+        // entry (not category-wide) so a still-open amendment/usaglašeni zahtev shows up even if an
+        // earlier entry in the same category (e.g. the original permit) was already approved.
+        const withSub = list.filter(e => {
+          if (!e.date_submitted || !parseAnyDate(e.date_submitted)) return false;
+          if (e.date_approved) return false;
+          const rejDates = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
+          return rejDates.length === 0;
+        }).sort((a,b) => parseAnyDate(a.date_submitted) - parseAnyDate(b.date_submitted));
+        if (withSub.length) {
+          const latest = withSub[withSub.length-1];
+          const dSub = parseAnyDate(latest.date_submitted);
+          const key = p.id+'|'+aspect+'|'+cat;
+          pendingMap[key] = { project:p, category:cat, aspect, caseNum: latest.case_num||'', dateSubmitted: latest.date_submitted, daysWaiting: daysBetweenDates(dSub, now) };
         }
       });
     });
   });
 
-  return { durations, byYear, pending: Object.values(pendingMap) };
+  return { durations, byYear, byYearProjects, pending: Object.values(pendingMap) };
 }
 
 function renderOverviewCharts() {
@@ -2086,25 +2114,46 @@ function renderCharts2() {
 }
 
 // ========== PERMITTING CHARTS ==========
-let _permLaw = '', _permTech = '', _permAspect = '';
+let _permLaw = '', _permTech = '', _permAspect = 'Elektrana';
 
 window.setPermAspect = function(aspect) {
   _permAspect = aspect;
-  document.querySelectorAll('.perm-aspect-btn').forEach(b => b.classList.toggle('active', b.dataset.aspect === aspect));
+  document.querySelectorAll('#perm-aspect-btns .perm-aspect-btn').forEach(b => b.classList.toggle('active', b.dataset.aspect === aspect));
+  renderPermittingCharts();
+};
+
+window.setPermLaw = function(law) {
+  _permLaw = law;
+  document.querySelectorAll('#perm-law-btns .perm-aspect-btn').forEach(b => b.classList.toggle('active', b.dataset.law === law));
+  renderPermittingCharts();
+};
+
+window.setPermTech = function(tech) {
+  _permTech = tech;
+  document.querySelectorAll('#perm-tech-btns .perm-aspect-btn').forEach(b => b.classList.toggle('active', b.dataset.tech === tech));
   renderPermittingCharts();
 };
 
 function renderPermittingCharts() {
   const filtered = PROJECTS.filter(p =>
-    (!_permLaw  || p.law === _permLaw) &&
+    (!_permLaw  || (p.law||'').trim() === _permLaw.trim()) &&
     (!_permTech || p.technology.trim() === _permTech)
   );
 
   renderPermitWaitAnalysis(filtered);
 }
 
+// Formats a list of project names as multi-line tooltip content, capped so the tooltip doesn't grow unbounded
+function formatTooltipProjectNames(names) {
+  if (!names.length) return '';
+  const MAX = 8;
+  const lines = ['Projekti:'].concat(names.slice(0, MAX).map(function(n){ return '• '+n; }));
+  if (names.length > MAX) lines.push('… i još '+(names.length-MAX));
+  return lines;
+}
+
 function renderPermitWaitAnalysis(filtered) {
-  const { durations, byYear, pending } = collectPermitPhaseData(filtered, _permAspect);
+  const { durations, byYear, byYearProjects, pending } = collectPermitPhaseData(filtered, _permAspect);
 
   const CAT_COLORS = {
     'Lokacijski uslovi':'#3b9eff', 'Građevinska dozvola':'#f97316',
@@ -2150,7 +2199,14 @@ function renderPermitWaitAnalysis(filtered) {
     options: {
       interaction: { mode: 'index', intersect: false },
       plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
-        tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label+': '+ctx.raw+' dana'; } } } },
+        tooltip: { callbacks: {
+          label: function(ctx) { return ctx.dataset.label+': '+ctx.raw+' dana'; },
+          afterLabel: function(ctx) {
+            const cat = ctx.dataset.label, year = ctx.label;
+            const names = durations[cat].filter(function(d){ return String(d.year) === String(year); }).map(function(d){ return d.project; });
+            return formatTooltipProjectNames(names);
+          }
+        } } },
       scales: {
         x: { ticks: { color: '#e2e8f0' }, grid: { color: '#1e2d47' } },
         y: { beginAtZero: true, ticks: { color: '#64748b' }, grid: { color: '#1e2d47' }, title: { display: true, text: 'dana', color: '#64748b', font: { size: 11 } } }
@@ -2178,7 +2234,14 @@ function renderPermitWaitAnalysis(filtered) {
     options: {
       interaction: { mode: 'index', intersect: false },
       plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
-        tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label+': '+ctx.raw; } } } },
+        tooltip: { callbacks: {
+          label: function(ctx) { return ctx.dataset.label+': '+ctx.raw; },
+          afterLabel: function(ctx) {
+            const cat = ctx.dataset.label, year = ctx.label;
+            const names = (byYearProjects[cat] && byYearProjects[cat][year]) || [];
+            return formatTooltipProjectNames(names);
+          }
+        } } },
       scales: {
         x: { ticks: { color: '#e2e8f0' }, grid: { color: '#1e2d47' } },
         y: { beginAtZero: true, ticks: { color: '#64748b', stepSize: 1 }, grid: { color: '#1e2d47' } }
