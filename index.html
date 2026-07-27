@@ -508,6 +508,41 @@
 
   .filter-group { display: flex; flex-direction: column; gap: 6px; }
 
+  /* Multi-select checkbox dropdown filters */
+  .ms-filter { position: relative; display: flex; flex-direction: column; gap: 6px; }
+  .ms-toggle {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px;
+    cursor: pointer; min-width: 140px; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  }
+  .ms-toggle:hover { border-color: var(--accent); }
+  .ms-toggle .ms-caret { color: var(--muted); font-size: 10px; }
+  .ms-toggle.has-sel { border-color: var(--accent); color: var(--accent); }
+  .ms-panel {
+    position: absolute; top: 100%; left: 0; margin-top: 5px; z-index: 60;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 6px; min-width: 190px; max-height: 300px; overflow-y: auto;
+    box-shadow: 0 14px 36px rgba(0,0,0,.55);
+  }
+  .ms-opt {
+    display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px;
+    font-size: 13px; color: var(--text); cursor: pointer; white-space: nowrap;
+  }
+  .ms-opt:hover { background: rgba(255,255,255,.05); }
+  .ms-opt input { accent-color: var(--accent); cursor: pointer; width: 15px; height: 15px; }
+
+  /* Compact selection summary that sits next to the Export button in the filter bar */
+  .table-summary-inline {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 14px; align-self: flex-end;
+  }
+  .ts-total { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; color: var(--accent); line-height: 1; }
+  .ts-total small { font-size: 11px; color: var(--muted); font-weight: 400; }
+  .ts-tech { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text); white-space: nowrap; }
+  .ts-tech b { font-family: 'Syne', sans-serif; font-weight: 700; }
+  .ts-sep { width: 1px; align-self: stretch; background: var(--border); }
+
   select, input[type="text"] {
     background: var(--bg);
     border: 1px solid var(--border);
@@ -1019,11 +1054,36 @@
 
   .page-info { font-size: 12px; color: var(--muted); }
 
-  /* RESPONSIVE */
-  @media (max-width: 900px) {
-    .stats-row { grid-template-columns: repeat(2, 1fr); }
+  /* ===== RESPONSIVE ===== */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  @media (max-width: 1100px) {
     .charts-grid { grid-template-columns: 1fr; }
-    nav { display: none; }
+  }
+
+  @media (max-width: 900px) {
+    /* Header wraps; nav becomes a horizontal scroller instead of disappearing */
+    header { height: auto; padding: 10px 16px; flex-wrap: wrap; gap: 10px; }
+    nav { order: 3; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; padding-bottom: 2px; }
+    nav::-webkit-scrollbar { height: 0; }
+    .nav-btn { padding: 8px 14px; font-size: 13px; white-space: nowrap; flex: 0 0 auto; }
+    .two-col { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    #perm-kpi-row { grid-template-columns: repeat(2, 1fr) !important; }
+    /* Wide projects table scrolls horizontally instead of being clipped */
+    .table-wrap { overflow-x: auto; }
+    .table-wrap table { min-width: 780px; }
+  }
+
+  @media (max-width: 640px) {
+    /* Project-modal inner stat grids get too tight at 3 columns on phones */
+    #psm-kpis, #psm-details { grid-template-columns: repeat(2, 1fr) !important; }
+  }
+
+  @media (max-width: 560px) {
+    .stats-row { grid-template-columns: 1fr; }
+    #perm-kpi-row, #perm-wait-stats { grid-template-columns: 1fr !important; }
+    #pipeline-total-mw { font-size: 40px !important; letter-spacing: -1px !important; }
   }
 </style>
 </head>
@@ -1095,55 +1155,60 @@
         <label>Search</label>
         <input type="text" class="search-input" id="search" placeholder="Project, investor, location..." oninput="applyFilters()">
       </div>
-      <div class="filter-group">
+      <div class="ms-filter">
         <label>Technology</label>
-        <select id="f-tech" onchange="applyFilters()">
-          <option value="">All</option>
-          <option>Wind</option><option>Solar</option><option>Hybrid</option><option>BESS</option>
-        </select>
+        <button type="button" class="ms-toggle" onclick="toggleMsPanel(event,this)"><span class="ms-label">All</span><span class="ms-caret">▼</span></button>
+        <div class="ms-panel" id="msp-tech" style="display:none">
+          <label class="ms-opt"><input type="checkbox" value="Wind" onchange="onMsChange('tech')"> Wind</label>
+          <label class="ms-opt"><input type="checkbox" value="Solar" onchange="onMsChange('tech')"> Solar</label>
+          <label class="ms-opt"><input type="checkbox" value="Hybrid" onchange="onMsChange('tech')"> Hybrid</label>
+          <label class="ms-opt"><input type="checkbox" value="BESS" onchange="onMsChange('tech')"> BESS</label>
+        </div>
       </div>
-      <div class="filter-group">
+      <div class="ms-filter">
         <label>Status</label>
-        <select id="f-status" onchange="applyFilters()">
-          <option value="">All</option>
-          <option>In operation</option>
-          <option>In construction</option>
-          
-          <option>In development</option>
-        </select>
+        <button type="button" class="ms-toggle" onclick="toggleMsPanel(event,this)"><span class="ms-label">All</span><span class="ms-caret">▼</span></button>
+        <div class="ms-panel" id="msp-status" style="display:none">
+          <label class="ms-opt"><input type="checkbox" value="In operation" onchange="onMsChange('status')"> In operation</label>
+          <label class="ms-opt"><input type="checkbox" value="In construction" onchange="onMsChange('status')"> In construction</label>
+          <label class="ms-opt"><input type="checkbox" value="In development" onchange="onMsChange('status')"> In development</label>
+        </div>
       </div>
-      <div class="filter-group">
+      <div class="ms-filter">
         <label>Probability</label>
-        <select id="f-prob" onchange="applyFilters()">
-          <option value="">All</option>
-          <option>HIGH</option><option>LOW</option>
-        </select>
+        <button type="button" class="ms-toggle" onclick="toggleMsPanel(event,this)"><span class="ms-label">All</span><span class="ms-caret">▼</span></button>
+        <div class="ms-panel" id="msp-prob" style="display:none">
+          <label class="ms-opt"><input type="checkbox" value="HIGH" onchange="onMsChange('prob')"> HIGH</label>
+          <label class="ms-opt"><input type="checkbox" value="LOW" onchange="onMsChange('prob')"> LOW</label>
+        </div>
       </div>
-      <div class="filter-group">
+      <div class="ms-filter">
         <label>Law</label>
-        <select id="f-law" onchange="applyFilters()">
-          <option value="">All</option>
-          <option value="Old law">Old Law</option>
-          <option value="New law  1. window">1st GC Window</option>
-          <option value="New law  2. window">2nd GC Window</option>
-          <option value="New law  3. window">3rd GC Window</option>
-          <option value="New law  4. window">4th GC Window</option>
-        </select>
+        <button type="button" class="ms-toggle" onclick="toggleMsPanel(event,this)"><span class="ms-label">All</span><span class="ms-caret">▼</span></button>
+        <div class="ms-panel" id="msp-law" style="display:none">
+          <label class="ms-opt"><input type="checkbox" value="Old law" onchange="onMsChange('law')"> Old Law</label>
+          <label class="ms-opt"><input type="checkbox" value="New law  1. window" onchange="onMsChange('law')"> 1st GC Window</label>
+          <label class="ms-opt"><input type="checkbox" value="New law  2. window" onchange="onMsChange('law')"> 2nd GC Window</label>
+          <label class="ms-opt"><input type="checkbox" value="New law  3. window" onchange="onMsChange('law')"> 3rd GC Window</label>
+          <label class="ms-opt"><input type="checkbox" value="New law  4. window" onchange="onMsChange('law')"> 4th GC Window</label>
+        </div>
       </div>
-      <div class="filter-group">
+      <div class="ms-filter">
         <label>Permitting</label>
-        <select id="f-permit" onchange="applyFilters()">
-          <option value="">All</option>
-          <option value="Urbanistic Plan in preparation">Urbanistic Plan in prep.</option>
-          <option value="Urbanistic Plan Adopted">Urbanistic Plan Adopted</option>
-          <option value="Location Conditions">Location Conditions</option>
-          <option value="Energy permit">Energy permit</option>
-          <option value="Building Permit">Building Permit</option>
-          <option value="Finished">Finished</option>
-          <option value="Nothing (inactive)">Inactive</option>
-        </select>
+        <button type="button" class="ms-toggle" onclick="toggleMsPanel(event,this)"><span class="ms-label">All</span><span class="ms-caret">▼</span></button>
+        <div class="ms-panel" id="msp-permit" style="display:none">
+          <label class="ms-opt"><input type="checkbox" value="Urbanistic Plan in preparation" onchange="onMsChange('permit')"> Urbanistic Plan in prep.</label>
+          <label class="ms-opt"><input type="checkbox" value="Urbanistic Plan Adopted" onchange="onMsChange('permit')"> Urbanistic Plan Adopted</label>
+          <label class="ms-opt"><input type="checkbox" value="Location Conditions" onchange="onMsChange('permit')"> Location Conditions</label>
+          <label class="ms-opt"><input type="checkbox" value="Energy permit" onchange="onMsChange('permit')"> Energy permit</label>
+          <label class="ms-opt"><input type="checkbox" value="Building Permit" onchange="onMsChange('permit')"> Building Permit</label>
+          <label class="ms-opt"><input type="checkbox" value="Finished" onchange="onMsChange('permit')"> Finished</label>
+          <label class="ms-opt"><input type="checkbox" value="Nothing (inactive)" onchange="onMsChange('permit')"> Inactive</label>
+        </div>
       </div>
       <button class="clear-btn" onclick="clearFilters()">✕ Clear</button>
+      <button class="clear-btn" onclick="exportTableExcel()" style="border-color:var(--accent);color:var(--accent)">⬇ Export Excel</button>
+      <div id="table-summary" class="table-summary-inline"></div>
       <span class="results-count" id="results-count"></span>
     </div>
 
@@ -1317,10 +1382,25 @@
       <button class="perm-aspect-btn" data-tech="BESS" onclick="setPermTech('BESS')">BESS</button>
     </div>
 
-    <!-- Stat cards: avg/median wait per phase -->
-    <div class="stats-row" id="perm-wait-stats" style="grid-template-columns:repeat(3,1fr)"></div>
+    <!-- KPI summary row -->
+    <div class="stats-row" id="perm-kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px"></div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px">
+    <!-- Stat cards: avg/median wait per phase -->
+    <div class="stats-row" id="perm-wait-stats" style="grid-template-columns:repeat(2,1fr)"></div>
+
+    <!-- Aging buckets + funnel -->
+    <div class="two-col" style="margin-top:20px">
+      <div class="chart-card">
+        <div class="chart-title">Starost predmeta u čekanju (backlog)</div>
+        <div id="perm-aging-buckets"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Napredak kroz faze (funnel)</div>
+        <div id="perm-funnel"></div>
+      </div>
+    </div>
+
+    <div class="two-col" style="margin-top:20px">
       <div class="chart-card">
         <div class="chart-title">Prosečno vreme čekanja po godini (dana)</div>
         <div style="position:relative;height:300px"><canvas id="perm-chart-wait-trend"></canvas></div>
@@ -1331,9 +1411,24 @@
       </div>
     </div>
 
+    <!-- Rejection analysis + law comparison -->
+    <div class="two-col" style="margin-top:20px">
+      <div class="chart-card">
+        <div class="chart-title">Analiza odbijanja</div>
+        <div id="perm-rejection-analysis"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Prosečno vreme po zakonu / prozoru (dana)</div>
+        <div style="position:relative;height:300px"><canvas id="perm-chart-law-compare"></canvas></div>
+      </div>
+    </div>
+
     <!-- Pending permits table -->
     <div class="chart-card" style="margin-top:20px">
-      <div class="chart-title">Trenutno u čekanju</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div class="chart-title" style="margin-bottom:0">Trenutno u čekanju</div>
+        <button onclick="exportPendingCsv()" id="perm-export-btn" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">⬇ Export CSV</button>
+      </div>
       <div id="perm-pending-list"></div>
     </div>
   </div>
@@ -1563,6 +1658,15 @@
 // ========== DATA ==========
 let PROJECTS = [];
 
+// HTML-escape any DB/user-derived value before injecting it into innerHTML.
+// Guards against stored XSS from free-text fields (name, investor, comment, permit names, etc.).
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+  });
+}
+
 
 // Accurate GPS coordinates for Serbian municipalities (lat, lng)
 const LOCATION_COORDS = {
@@ -1685,20 +1789,27 @@ function showView(name) {
 let sortField = 'capacity_mw', sortDir = -1, currentPage = 1;
 const PAGE_SIZE = 20;
 
+// Returns the checked values of a multi-select filter panel (empty array = no filter / "All")
+function getCheckedValues(field) {
+  const panel = document.getElementById('msp-' + field);
+  if (!panel) return [];
+  return Array.from(panel.querySelectorAll('input[type=checkbox]:checked')).map(function(cb){ return cb.value; });
+}
+
 function getFiltered() {
   const q = (document.getElementById('search')?.value || '').toLowerCase();
-  const fTech   = document.getElementById('f-tech')?.value || '';
-  const fStatus = document.getElementById('f-status')?.value || '';
-  const fProb   = document.getElementById('f-prob')?.value || '';
-  const fLaw    = document.getElementById('f-law')?.value || '';
-  const fPermit = document.getElementById('f-permit')?.value || '';
+  const techs    = getCheckedValues('tech');
+  const statuses = getCheckedValues('status');
+  const probs    = getCheckedValues('prob');
+  const laws     = getCheckedValues('law').map(function(l){ return l.trim(); });
+  const permits  = getCheckedValues('permit');
   return PROJECTS.filter(p => {
     if (q && !p.name.toLowerCase().includes(q) && !p.investor.toLowerCase().includes(q) && !p.location.toLowerCase().includes(q)) return false;
-    if (fTech   && p.technology.trim() !== fTech) return false;
-    if (fStatus && p.status_overall !== fStatus) return false;
-    if (fProb   && (p.probability||'').trim().toUpperCase() !== fProb.toUpperCase()) return false;
-    if (fLaw    && (p.law||'').trim() !== fLaw.trim()) return false;
-    if (fPermit && !(p.status_permitting||'').includes(fPermit)) return false;
+    if (techs.length    && techs.indexOf(p.technology.trim()) === -1) return false;
+    if (statuses.length && statuses.indexOf(p.status_overall) === -1) return false;
+    if (probs.length    && probs.indexOf((p.probability||'').trim().toUpperCase()) === -1) return false;
+    if (laws.length     && laws.indexOf((p.law||'').trim()) === -1) return false;
+    if (permits.length  && !permits.some(function(fp){ return (p.status_permitting||'').includes(fp); })) return false;
     return true;
   }).sort((a, b) => {
     let va = a[sortField] ?? '', vb = b[sortField] ?? '';
@@ -1706,6 +1817,31 @@ function getFiltered() {
     return String(va).localeCompare(String(vb)) * sortDir;
   });
 }
+
+// Multi-select dropdown behaviour
+function toggleMsPanel(ev, btn) {
+  ev.stopPropagation();
+  const panel = btn.parentElement.querySelector('.ms-panel');
+  const isOpen = panel.style.display === 'block';
+  document.querySelectorAll('.ms-panel').forEach(function(p){ p.style.display = 'none'; });
+  panel.style.display = isOpen ? 'none' : 'block';
+}
+function onMsChange(field) {
+  const panel = document.getElementById('msp-' + field);
+  const toggle = panel.parentElement.querySelector('.ms-toggle');
+  const lbl = toggle.querySelector('.ms-label');
+  const checked = Array.from(panel.querySelectorAll('input:checked'));
+  if (!checked.length) { lbl.textContent = 'All'; toggle.classList.remove('has-sel'); }
+  else if (checked.length === 1) { lbl.textContent = checked[0].parentElement.textContent.trim(); toggle.classList.add('has-sel'); }
+  else { lbl.textContent = checked.length + ' izabrano'; toggle.classList.add('has-sel'); }
+  applyFilters();
+}
+// Close any open filter panel when clicking elsewhere
+document.addEventListener('click', function(e){
+  if (!e.target.closest || !e.target.closest('.ms-filter')) {
+    document.querySelectorAll('.ms-panel').forEach(function(p){ p.style.display = 'none'; });
+  }
+});
 
 function renderTable() {
   const data = getFiltered();
@@ -1716,21 +1852,44 @@ function renderTable() {
   tbody.innerHTML = page.map(p => `
     <tr onclick="openProjSummary(${p.id})" style="cursor:pointer" onmouseover="this.style.background='rgba(255,255,255,.02)'" onmouseout="this.style.background=''">
       <td>
-        <div class="project-name" style="color:var(--accent)">${p.name}</div>
+        <div class="project-name" style="color:var(--accent)">${esc(p.name)}</div>
       </td>
-      <td><span class="investor-name">${p.investor}</span></td>
-      <td style="font-size:12px;color:var(--muted)">${p.location}</td>
-      <td><span class="capacity-val">${p.capacity_mw}</span> <span style="font-size:11px;color:var(--muted)">MW</span></td>
-      <td><span class="tech-badge tech-${p.technology.trim()}">${techIcon(p.technology)} ${p.technology.trim()}</span></td>
+      <td><span class="investor-name">${esc(p.investor)}</span></td>
+      <td style="font-size:12px;color:var(--muted)">${esc(p.location)}</td>
+      <td><span class="capacity-val">${esc(p.capacity_mw)}</span> <span style="font-size:11px;color:var(--muted)">MW</span></td>
+      <td><span class="tech-badge tech-${esc(p.technology.trim())}">${techIcon(p.technology)} ${esc(p.technology.trim())}</span></td>
       <td>${statusBadge(p.status_overall)}</td>
-      <td><span class="${p.probability ? 'prob-'+p.probability : ''}">${p.probability || '—'}</span></td>
-      <td style="font-size:11px;color:var(--muted);max-width:160px">${p.status_permitting}</td>
-      <td style="font-size:11px;color:var(--muted)">${p.cfd}</td>
+      <td><span class="${p.probability ? 'prob-'+esc(p.probability) : ''}">${esc(p.probability) || '—'}</span></td>
+      <td style="font-size:11px;color:var(--muted);max-width:160px">${esc(p.status_permitting)}</td>
+      <td style="font-size:11px;color:var(--muted)">${esc(p.cfd)}</td>
       <td onclick="event.stopPropagation();goToProjectOnMap(${p.id})" style="cursor:pointer;text-align:center" title="Prikaži na mapi">
         <span style="font-size:14px;opacity:.6;transition:opacity .2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">📍</span>
       </td>
     </tr>`).join('');
   renderPagination(data.length);
+  updateTableSummary(data);
+}
+
+// Compact selection summary next to the Export button: total GW + per-technology GW
+function updateTableSummary(data) {
+  const el = document.getElementById('table-summary');
+  if (!el) return;
+  const TECHS = [
+    { key:'Wind',   label:'Vetar',  col:'#3b9eff', icon:'🌬' },
+    { key:'Solar',  label:'Solar',  col:'#f5c842', icon:'☀️' },
+    { key:'BESS',   label:'BESS',   col:'#f97316', icon:'🔋' },
+    { key:'Hybrid', label:'Hibrid', col:'#a855f7', icon:'⚡' }
+  ];
+  let totalMW = 0;
+  const byTech = {}; TECHS.forEach(function(t){ byTech[t.key] = 0; });
+  data.forEach(function(p){ const mw = parseFloat(p.capacity_mw)||0; totalMW += mw; const t = (p.technology||'').trim(); if (byTech[t] !== undefined) byTech[t] += mw; });
+  const gw = function(mw){ return (mw/1000).toLocaleString('de-DE', { minimumFractionDigits:1, maximumFractionDigits:1 }); };
+  el.innerHTML =
+      '<div class="ts-total">'+gw(totalMW)+' <small>GW</small></div>'
+    + '<div class="ts-sep"></div>'
+    + TECHS.map(function(t){
+        return '<span class="ts-tech" title="'+t.label+'">'+t.icon+' '+t.label+' <b style="color:'+t.col+'">'+gw(byTech[t.key])+'</b></span>';
+      }).join('');
 }
 
 function techIcon(t) {
@@ -1739,7 +1898,7 @@ function techIcon(t) {
 
 function statusBadge(s) {
   const cls = 'status-' + s.replace(/ /g,'.');
-  return `<span class="status-badge ${cls}"><span class="status-dot"></span>${s}</span>`;
+  return `<span class="status-badge ${cls}"><span class="status-dot"></span>${esc(s)}</span>`;
 }
 
 function renderPagination(total) {
@@ -1767,11 +1926,56 @@ function sortBy(field) {
 }
 function applyFilters() { currentPage = 1; renderTable(); }
 function clearFilters() {
-  ['search','f-tech','f-status','f-prob','f-law','f-permit'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
+  const s = document.getElementById('search'); if (s) s.value = '';
+  ['tech','status','prob','law','permit'].forEach(function(field){
+    const panel = document.getElementById('msp-' + field);
+    if (!panel) return;
+    panel.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
+    const toggle = panel.parentElement.querySelector('.ms-toggle');
+    if (toggle) { toggle.querySelector('.ms-label').textContent = 'All'; toggle.classList.remove('has-sel'); }
   });
   applyFilters();
+}
+
+// Export the currently-filtered table to a styled Excel file (.xls via HTML — bold header,
+// zebra rows, borders; opens far nicer than raw CSV).
+function exportTableExcel() {
+  const rows = getFiltered();
+  if (!rows.length) { alert('Nema projekata za izvoz (proveri filtere).'); return; }
+  const cols = [
+    { h:'Projekat',    f:function(p){ return p.name; } },
+    { h:'Investitor',  f:function(p){ return p.investor; } },
+    { h:'Lokacija',    f:function(p){ return p.location; } },
+    { h:'Snaga (MW)',  f:function(p){ return p.capacity_mw; }, num:true },
+    { h:'Tehnologija', f:function(p){ return (p.technology||'').trim(); } },
+    { h:'Status',      f:function(p){ return p.status_overall; } },
+    { h:'Verovatnoća', f:function(p){ return p.probability; } },
+    { h:'Zakon',       f:function(p){ return p.law; } },
+    { h:'Permitting',  f:function(p){ return p.status_permitting; } },
+    { h:'CFD',         f:function(p){ return p.cfd; } }
+  ];
+  const e = function(v){ return (v==null?'':String(v)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  const totalMW = rows.reduce(function(s,p){ return s + (parseFloat(p.capacity_mw)||0); }, 0);
+  const totalGW = (Math.round(totalMW/100)/10).toLocaleString('de-DE', { minimumFractionDigits:1, maximumFractionDigits:1 });
+
+  let html = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>';
+  html += '<table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:11pt">';
+  html += '<tr><td colspan="'+cols.length+'" style="background:#0b0f1a;color:#00e5a0;font-size:14pt;font-weight:bold;padding:10px">Serbia RE — Selekcija ('+rows.length+' projekata · '+totalGW+' GW)</td></tr>';
+  html += '<tr>' + cols.map(function(c){ return '<th style="background:#131929;color:#ffffff;border:1px solid #1e2d47;padding:8px;text-align:left">'+e(c.h)+'</th>'; }).join('') + '</tr>';
+  rows.forEach(function(p, i){
+    const bg = (i % 2) ? '#eef2f8' : '#ffffff';
+    html += '<tr>' + cols.map(function(c){
+      return '<td style="background:'+bg+';border:1px solid #d0d7e2;padding:6px;text-align:'+(c.num?'right':'left')+'">'+e(c.f(p))+'</td>';
+    }).join('') + '</tr>';
+  });
+  html += '</table></body></html>';
+
+  const blob = new Blob(['﻿' + html], { type:'application/vnd.ms-excel;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'projekti-selekcija.xls';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ========== CARDS ==========
@@ -1794,32 +1998,32 @@ function renderCards() {
     <div class="proj-card" data-tech="${p.technology.trim()}">
       <div class="card-header">
         <div>
-          <div class="card-name">${p.name}</div>
-          <div class="card-investor">${p.investor}</div>
+          <div class="card-name">${esc(p.name)}</div>
+          <div class="card-investor">${esc(p.investor)}</div>
         </div>
-        <span class="tech-badge tech-${p.technology.trim()}">${techIcon(p.technology)} ${p.technology.trim()}</span>
+        <span class="tech-badge tech-${esc(p.technology.trim())}">${techIcon(p.technology)} ${esc(p.technology.trim())}</span>
       </div>
       ${statusBadge(p.status_overall)}
       <div class="card-meta">
         <div class="card-meta-item">
           <label>Capacity</label>
-          <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px">${p.capacity_mw} MW</span>
+          <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:15px">${esc(p.capacity_mw)} MW</span>
         </div>
         <div class="card-meta-item">
           <label>Probability</label>
-          <span class="${p.probability?'prob-'+p.probability:''}">${p.probability||'—'}</span>
+          <span class="${p.probability?'prob-'+esc(p.probability):''}">${esc(p.probability)||'—'}</span>
         </div>
         <div class="card-meta-item">
           <label>Law</label>
-          <span style="font-size:12px">${p.law}</span>
+          <span style="font-size:12px">${esc(p.law)}</span>
         </div>
         <div class="card-meta-item">
           <label>CFD</label>
-          <span style="font-size:12px">${p.cfd}</span>
+          <span style="font-size:12px">${esc(p.cfd)}</span>
         </div>
       </div>
-      ${p.comment && p.comment !== '/' ? `<div style="font-size:11px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">📅 ${p.comment}</div>` : ''}
-      <div class="card-location">📍 ${p.location}</div>
+      ${p.comment && p.comment !== '/' ? `<div style="font-size:11px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">📅 ${esc(p.comment)}</div>` : ''}
+      <div class="card-location">📍 ${esc(p.location)}</div>
     </div>`).join('');
 }
 
@@ -1889,6 +2093,12 @@ function collectPermitPhaseData(projects, aspectFilter) {
   const byYear = {}; PERMIT_PHASE_CATS.forEach(c => byYear[c] = {});
   const byYearProjects = {}; PERMIT_PHASE_CATS.forEach(c => byYearProjects[c] = {});
   const pendingMap = {};
+  // Extended analytics: rejections list, projects that reached each stage (for the funnel),
+  // and the set of projects that hit at least one rejection anywhere.
+  const rejections = [];                                            // {projectId, name, category, aspect, date, year}
+  const approvedByCat = {}; PERMIT_PHASE_CATS.forEach(c => approvedByCat[c] = new Set());
+  const projRejected = new Set();
+  const seenProjects = new Set();                                   // projects that have any usable permit_history
   const now = new Date();
 
   projects.forEach(p => {
@@ -1899,6 +2109,7 @@ function collectPermitPhaseData(projects, aspectFilter) {
     if (Array.isArray(ph)) {
       if (aspectFilter) return;
       const LEGACY_MAP = { 'Urbanistic Plan Adopted':'Urbanistički plan', 'Building Permit':'Građevinska dozvola', 'Energy permit':'Energetska dozvola', 'Location Conditions':'Lokacijski uslovi' };
+      seenProjects.add(p.id);
       ph.forEach(e => {
         const cat = e && e.type && LEGACY_MAP[e.type];
         if (!cat) return;
@@ -1907,6 +2118,7 @@ function collectPermitPhaseData(projects, aspectFilter) {
         const y = d.getFullYear();
         byYear[cat][y] = (byYear[cat][y]||0) + 1;
         (byYearProjects[cat][y] = byYearProjects[cat][y] || []).push(p.name);
+        approvedByCat[cat].add(p.id);
       });
       return;
     }
@@ -1926,13 +2138,21 @@ function collectPermitPhaseData(projects, aspectFilter) {
         if (aspect === 'Urbanizam') { cat = 'Urbanistički plan'; completedTypes = ['Approved', 'Usvojen']; }
         else if (aspect === 'Energetska Dozvola') cat = 'Energetska dozvola';
         if (!cat) return;
+        seenProjects.add(p.id);
         entries.forEach(e => {
+          if (e.type === 'Rejected' || e.type === 'Odbijen') {
+            const dr = parseAnyDate(e.date);
+            rejections.push({ projectId:p.id, name:p.name, category:cat, aspect, date:e.date, year: dr?dr.getFullYear():null });
+            projRejected.add(p.id);
+            return;
+          }
           if (!completedTypes.includes(e.type)) return;
           const d = parseAnyDate(e.date);
           if (!d) return;
           const y = d.getFullYear();
           byYear[cat][y] = (byYear[cat][y]||0) + 1;
           (byYearProjects[cat][y] = byYearProjects[cat][y] || []).push(p.name);
+          approvedByCat[cat].add(p.id);
         });
         return;
       }
@@ -1948,6 +2168,16 @@ function collectPermitPhaseData(projects, aspectFilter) {
 
       Object.keys(byCat).forEach(cat => {
         const list = byCat[cat];
+        seenProjects.add(p.id);
+        // Any rejection dates across entries in this category count as rejections for this project
+        list.forEach(e => {
+          const rejDates = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
+          rejDates.forEach(rd => {
+            const dr = parseAnyDate(rd);
+            rejections.push({ projectId:p.id, name:p.name, category:cat, aspect, date:rd, year: dr?dr.getFullYear():null });
+            projRejected.add(p.id);
+          });
+        });
         // Only the first-ever approval counts (skip later amendments/renewals of the same permit
         // so a project isn't represented more than once per category)
         const approvedEntries = list
@@ -1959,9 +2189,10 @@ function collectPermitPhaseData(projects, aspectFilter) {
           const yApp = dApp.getFullYear();
           byYear[cat][yApp] = (byYear[cat][yApp]||0) + 1;
           (byYearProjects[cat][yApp] = byYearProjects[cat][yApp] || []).push(p.name);
+          approvedByCat[cat].add(p.id);
           if (first.date_submitted) {
             const dSub = parseAnyDate(first.date_submitted);
-            if (dSub && dApp >= dSub) durations[cat].push({ days: daysBetweenDates(dSub, dApp), year: yApp, project: p.name });
+            if (dSub && dApp >= dSub) durations[cat].push({ days: daysBetweenDates(dSub, dApp), year: yApp, project: p.name, law: p.law||'', projectId: p.id });
           }
         }
         // Pending = latest (by date_submitted) entry in this category that itself has no approval yet
@@ -1984,7 +2215,10 @@ function collectPermitPhaseData(projects, aspectFilter) {
     });
   });
 
-  return { durations, byYear, byYearProjects, pending: Object.values(pendingMap) };
+  return {
+    durations, byYear, byYearProjects, pending: Object.values(pendingMap),
+    rejections, approvedByCat, projRejectedCount: projRejected.size, totalTracked: seenProjects.size
+  };
 }
 
 function renderOverviewCharts() {
@@ -2139,8 +2373,12 @@ function renderPermittingCharts() {
     (!_permLaw  || (p.law||'').trim() === _permLaw.trim()) &&
     (!_permTech || p.technology.trim() === _permTech)
   );
+  // Law comparison ignores the law filter (that's the whole point — compare across laws),
+  // but still respects the technology filter.
+  const filteredNoLaw = PROJECTS.filter(p => (!_permTech || p.technology.trim() === _permTech));
 
   renderPermitWaitAnalysis(filtered);
+  renderPermitLawComparison(filteredNoLaw);
 }
 
 // Formats a list of project names as multi-line tooltip content, capped so the tooltip doesn't grow unbounded
@@ -2153,7 +2391,7 @@ function formatTooltipProjectNames(names) {
 }
 
 function renderPermitWaitAnalysis(filtered) {
-  const { durations, byYear, byYearProjects, pending } = collectPermitPhaseData(filtered, _permAspect);
+  const { durations, byYear, byYearProjects, pending, rejections, approvedByCat, projRejectedCount, totalTracked } = collectPermitPhaseData(filtered, _permAspect);
 
   const CAT_COLORS = {
     'Lokacijski uslovi':'#3b9eff', 'Građevinska dozvola':'#f97316',
@@ -2253,6 +2491,7 @@ function renderPermitWaitAnalysis(filtered) {
   const pendingEl = document.getElementById('perm-pending-list');
   if (pendingEl) {
     const sorted = pending.slice().sort(function(a,b){ return b.daysWaiting - a.daysWaiting; });
+    window._permPendingRows = sorted;
     if (!sorted.length) {
       pendingEl.innerHTML = '<div style="font-size:12px;color:var(--muted);font-style:italic;padding:8px 0">Nema projekata u čekanju za izabrani filter.</div>';
     } else {
@@ -2263,17 +2502,176 @@ function renderPermitWaitAnalysis(filtered) {
             return '<div style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 14px;cursor:pointer" onclick="openProjSummary('+row.project.id+')">'
               +'<div style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></div>'
               +'<div style="flex:1;min-width:0">'
-              +'<div style="font-size:13px;font-weight:600;color:var(--text)">'+row.project.name+'</div>'
-              +'<div style="font-size:11px;color:var(--muted)">'+row.category+' · '+row.aspect+(row.caseNum?' · '+row.caseNum:'')+'</div>'
+              +'<div style="font-size:13px;font-weight:600;color:var(--text)">'+esc(row.project.name)+'</div>'
+              +'<div style="font-size:11px;color:var(--muted)">'+esc(row.category)+' · '+esc(row.aspect)+(row.caseNum?' · '+esc(row.caseNum):'')+'</div>'
               +'</div>'
               +'<div style="text-align:right;flex-shrink:0">'
               +'<div style="font-size:13px;font-weight:700;color:'+(urgent?'#ef4444':'var(--text)')+'">'+formatDurationDays(row.daysWaiting)+'</div>'
-              +'<div style="font-size:10px;color:var(--muted)">podneto '+row.dateSubmitted+'</div>'
+              +'<div style="font-size:10px;color:var(--muted)">podneto '+esc(row.dateSubmitted)+'</div>'
               +'</div></div>';
           }).join('')
         +'</div>';
     }
   }
+
+  // ── KPI summary row ──
+  const kpiEl = document.getElementById('perm-kpi-row');
+  if (kpiEl) {
+    const allDur = PERMIT_DURATION_CATS.reduce(function(acc,cat){ return acc.concat(durations[cat].map(function(d){return d.days;})); }, []);
+    const avgAll = allDur.length ? Math.round(allDur.reduce(function(s,v){return s+v;},0)/allDur.length) : null;
+    const curYear = new Date().getFullYear();
+    const obtainedThisYear = PERMIT_PHASE_CATS.reduce(function(s,cat){ return s + (byYear[cat][curYear]||0); }, 0);
+    const rejPct = totalTracked ? Math.round((projRejectedCount/totalTracked)*100) : 0;
+    const kpi = function(label, value, sub, col) {
+      return '<div class="stat-card"><div class="stat-label">'+label+'</div>'
+        +'<div class="stat-value" style="color:'+(col||'var(--text)')+'">'+value+'</div>'
+        +'<div class="stat-sub">'+sub+'</div></div>';
+    };
+    kpiEl.innerHTML =
+        kpi('U proceduri', pending.length, 'aktivnih predmeta', 'var(--accent)')
+      + kpi('Dobijeno '+curYear, obtainedThisYear, 'dozvola ove godine', '#22c55e')
+      + kpi('Prosečno trajanje', avgAll!==null?formatDurationDays(avgAll):'—', 'LU + GD, sve godine', '#3b9eff')
+      + kpi('Sa odbijanjem', rejPct+'%', projRejectedCount+' od '+totalTracked+' projekata', rejPct>30?'#ef4444':'#f59e0b');
+  }
+
+  // ── Aging buckets (backlog health) ──
+  const agingEl = document.getElementById('perm-aging-buckets');
+  if (agingEl) {
+    const buckets = [
+      { label:'0–90 dana', min:0, max:90, col:'#22c55e' },
+      { label:'90–180 dana', min:90, max:180, col:'#f5c842' },
+      { label:'180–365 dana', min:180, max:365, col:'#f97316' },
+      { label:'365+ dana', min:365, max:Infinity, col:'#ef4444' }
+    ];
+    const counts = buckets.map(function(b){ return pending.filter(function(r){ return r.daysWaiting>=b.min && r.daysWaiting<b.max; }).length; });
+    const maxCount = Math.max(1, Math.max.apply(null, counts));
+    if (!pending.length) {
+      agingEl.innerHTML = '<div style="font-size:12px;color:var(--muted);font-style:italic;padding:8px 0">Nema predmeta u čekanju.</div>';
+    } else {
+      agingEl.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px;margin-top:8px">'
+        + buckets.map(function(b,i){
+            const c = counts[i];
+            const pct = Math.round((c/maxCount)*100);
+            return '<div>'
+              +'<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:var(--text)">'+b.label+'</span><span style="color:'+b.col+';font-weight:700">'+c+'</span></div>'
+              +'<div style="height:10px;background:var(--surface2);border-radius:6px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+b.col+';border-radius:6px;transition:width .4s"></div></div>'
+              +'</div>';
+          }).join('')
+        +'</div>';
+    }
+  }
+
+  // ── Funnel / stage progression ──
+  const funnelEl = document.getElementById('perm-funnel');
+  if (funnelEl) {
+    const FUNNEL_STAGES = [
+      { cat:'Urbanistički plan', col:'#a855f7' },
+      { cat:'Lokacijski uslovi', col:'#3b9eff' },
+      { cat:'Građevinska dozvola', col:'#f97316' }
+    ];
+    const operational = filtered.filter(function(p){ const s=(p.status_overall||'').toLowerCase(); return s.indexOf('operation')>-1 || s.indexOf('construction')>-1; }).length;
+    const rows = FUNNEL_STAGES.map(function(s){ return { label:s.cat, count:(approvedByCat[s.cat]?approvedByCat[s.cat].size:0), col:s.col }; });
+    rows.push({ label:'U izgradnji / operativni', count:operational, col:'#22c55e' });
+    const maxF = Math.max(1, Math.max.apply(null, rows.map(function(r){return r.count;})));
+    funnelEl.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">'
+      + rows.map(function(r){
+          const pct = Math.round((r.count/maxF)*100);
+          return '<div style="display:flex;align-items:center;gap:10px">'
+            +'<div style="width:150px;font-size:12px;color:var(--muted);flex-shrink:0;text-align:right">'+r.label+'</div>'
+            +'<div style="flex:1;height:22px;background:var(--surface2);border-radius:6px;overflow:hidden;position:relative"><div style="height:100%;width:'+Math.max(pct,4)+'%;background:'+r.col+';border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;transition:width .4s"><span style="font-size:11px;font-weight:700;color:#0b0f1a">'+r.count+'</span></div></div>'
+            +'</div>';
+        }).join('')
+      +'</div>'
+      +'<div style="font-size:10px;color:var(--muted);margin-top:8px;font-style:italic">Broj projekata koji su dostigli svaku fazu (za izabrani filter).</div>';
+  }
+
+  // ── Rejection analysis ──
+  const rejEl = document.getElementById('perm-rejection-analysis');
+  if (rejEl) {
+    if (!rejections.length) {
+      rejEl.innerHTML = '<div style="font-size:12px;color:var(--muted);font-style:italic;padding:8px 0">Nema zabeleženih odbijanja za izabrani filter.</div>';
+    } else {
+      const byCatR = {};
+      rejections.forEach(function(r){ byCatR[r.category] = (byCatR[r.category]||0)+1; });
+      const cats = Object.keys(byCatR).sort(function(a,b){ return byCatR[b]-byCatR[a]; });
+      rejEl.innerHTML =
+          '<div style="display:flex;gap:24px;margin-bottom:14px">'
+          +'<div><div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#ef4444">'+rejections.length+'</div><div style="font-size:11px;color:var(--muted)">ukupno odbijanja</div></div>'
+          +'<div><div style="font-family:Syne,sans-serif;font-size:28px;font-weight:800;color:#f59e0b">'+projRejectedCount+'</div><div style="font-size:11px;color:var(--muted)">projekata pogođeno</div></div>'
+          +'</div>'
+        + '<div style="display:flex;flex-direction:column;gap:8px">'
+        + cats.map(function(cat){
+            const col = CAT_COLORS[cat] || '#94a3b8';
+            return '<div style="display:flex;align-items:center;gap:10px">'
+              +'<div style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></div>'
+              +'<div style="flex:1;font-size:12px;color:var(--text)">'+cat+'</div>'
+              +'<div style="font-size:13px;font-weight:700;color:'+col+'">'+byCatR[cat]+'</div>'
+              +'</div>';
+          }).join('')
+        +'</div>';
+    }
+  }
+}
+
+// ── Law/window comparison chart (ignores the active law filter, groups durations by law) ──
+const PERM_LAW_ORDER = [
+  { key:'Old law', label:'Old Law' },
+  { key:'New law  1. window', label:'1. Prozor' },
+  { key:'New law  2. window', label:'2. Prozor' },
+  { key:'New law  3. window', label:'3. Prozor' },
+  { key:'New law  4. window', label:'4. Prozor' }
+];
+function renderPermitLawComparison(projectsNoLawFilter) {
+  const { durations } = collectPermitPhaseData(projectsNoLawFilter, _permAspect);
+  const CAT_COLORS = {
+    'Lokacijski uslovi':'#3b9eff', 'Građevinska dozvola':'#f97316'
+  };
+  const labels = PERM_LAW_ORDER.map(function(l){ return l.label; });
+  const datasets = PERMIT_DURATION_CATS.map(function(cat){
+    return {
+      label: cat,
+      data: PERM_LAW_ORDER.map(function(l){
+        const vals = durations[cat].filter(function(d){ return (d.law||'').trim() === l.key.trim(); }).map(function(d){ return d.days; });
+        return vals.length ? Math.round(vals.reduce(function(s,v){return s+v;},0)/vals.length) : null;
+      }),
+      backgroundColor: CAT_COLORS[cat], borderRadius: 6
+    };
+  });
+  const counts = PERM_LAW_ORDER.map(function(l){
+    return PERMIT_DURATION_CATS.reduce(function(s,cat){ return s + durations[cat].filter(function(d){ return (d.law||'').trim() === l.key.trim(); }).length; }, 0);
+  });
+  makeChart('perm-chart-law-compare', {
+    type: 'bar',
+    data: { labels: labels, datasets: datasets },
+    options: {
+      plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+        tooltip: { callbacks: {
+          label: function(ctx){ return ctx.dataset.label+': '+(ctx.raw==null?'nema podataka':formatDurationDays(ctx.raw)); },
+          afterBody: function(items){ const i = items[0].dataIndex; return 'Uzorak: '+counts[i]+' dozvola'; }
+        } } },
+      scales: {
+        x: { ticks: { color: '#e2e8f0' }, grid: { color: '#1e2d47' } },
+        y: { beginAtZero: true, ticks: { color: '#64748b' }, grid: { color: '#1e2d47' }, title: { display: true, text: 'dana', color: '#64748b', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// CSV export of the currently-shown pending permits table
+function exportPendingCsv() {
+  const rows = window._permPendingRows || [];
+  if (!rows.length) { alert('Nema podataka za izvoz.'); return; }
+  const header = ['Projekat','Faza','Aspekt','Broj predmeta','Datum podnošenja','Dana u čekanju'];
+  const escCsv = function(v){ v = (v==null?'':String(v)); return /[",\n;]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+  const lines = [header.join(';')].concat(rows.map(function(r){
+    return [r.project.name, r.category, r.aspect, r.caseNum||'', r.dateSubmitted||'', r.daysWaiting].map(escCsv).join(';');
+  }));
+  const blob = new Blob(['﻿'+lines.join('\r\n')], { type:'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'permitting-u-cekanju.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ========== MAP (Leaflet.js) ==========
@@ -2348,8 +2746,8 @@ function renderMap() {
         : projs.map(p => `
           <div style="display:flex;justify-content:space-between;align-items:start;padding:8px 0;border-bottom:1px solid #1e2d47">
             <div>
-              <div style="font-weight:600;font-size:13px;color:#e2e8f0">${p.name}</div>
-              <div style="font-size:11px;color:#64748b;margin-top:2px">${p.investor} · ${p.location}</div>
+              <div style="font-weight:600;font-size:13px;color:#e2e8f0">${esc(p.name)}</div>
+              <div style="font-size:11px;color:#64748b;margin-top:2px">${esc(p.investor)} · ${esc(p.location)}</div>
               <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
                 <span class="tech-badge tech-${p.technology.trim()}">${p.technology.trim()}</span>
                 ${p.status_overall ? `<span style="font-size:11px;color:#94a3b8">${p.status_overall}</span>` : ''}
@@ -2539,7 +2937,7 @@ function renderMap() {
           radius: 7, color: color, fillColor: color, fillOpacity: 0.85,
           weight: 2, pane: 'projectGeoPane'
         });
-        marker.bindTooltip(`<b>${p.name}</b><br>${p.technology} · ${p.status}<br>${p.capacity_mw ? p.capacity_mw + ' MW' : ''}${p.investor ? '<br>' + p.investor : ''}`, { sticky: true });
+        marker.bindTooltip(`<b>${esc(p.name)}</b><br>${esc(p.technology)} · ${esc(p.status)}<br>${p.capacity_mw ? esc(p.capacity_mw) + ' MW' : ''}${p.investor ? '<br>' + esc(p.investor) : ''}`, { sticky: true });
         projectMarkersLayer.addLayer(marker);
       });
       projectMarkersLayer.addTo(leafletMap);
@@ -2731,7 +3129,7 @@ function openInvestorModal(investorName) {
   document.getElementById('modal-inv-body').innerHTML = projs.map(p => `
     <div class="modal-proj-card" data-tech="${p.technology.trim()}">
       <div>
-        <div class="modal-proj-name">${p.name}</div>
+        <div class="modal-proj-name">${esc(p.name)}</div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
           <span class="tech-badge tech-${p.technology.trim()}">${techIcon(p.technology)} ${p.technology.trim()}</span>
           ${statusBadge(p.status_overall)}
@@ -2863,7 +3261,7 @@ async function renderInvestors() {
       const col = techColors[p.technology.trim()]||'#888';
       return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openProjSummary('+p.id+')">'
         +'<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:'+col+'22;color:'+col+';font-weight:600;flex-shrink:0">'+p.technology.trim()+'</span>'
-        +'<span style="font-size:12px;color:var(--text);flex:1;font-weight:500">'+p.name+'</span>'
+        +'<span style="font-size:12px;color:var(--text);flex:1;font-weight:500">'+esc(p.name)+'</span>'
         +'<span style="font-size:11px;color:var(--muted);flex-shrink:0">'+p.capacity_mw+' MW</span>'
         +'</div>';
     }).join('');
@@ -3131,7 +3529,7 @@ function showStatusView(status) {
         +'<span style="font-size:11px;font-family:Syne,sans-serif;font-weight:800;color:'+rankCol+'">'+(i+1)+'</span>'
         +'</div>'
         +'<div>'
-        +'<div style="font-size:12px;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">'+inv+'</div>'
+        +'<div style="font-size:12px;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">'+esc(inv)+'</div>'
         +'<div style="font-size:10px;color:var(--muted)">'+count+' project'+(count!==1?'s':'')+'</div>'
         +'</div>'
         +'</div>'
@@ -3208,8 +3606,8 @@ function showStatusView(status) {
         return '<div style="padding:7px 0;border-bottom:1px solid rgba(30,45,71,.5)">'
           +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">'
           +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.name+'</div>'
-          +'<div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.investor+'</div>'
+          +'<div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(p.name)+'</div>'
+          +'<div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(p.investor)+'</div>'
           +'<div style="display:flex;gap:4px;margin-top:3px;align-items:center;flex-wrap:wrap">'
           +'<span style="font-size:10px;background:'+tc+'22;color:'+tc+';padding:1px 6px;border-radius:8px">'+p.technology.trim()+'</span>'
           +(prob?'<span style="font-size:10px;color:'+(prob==='HIGH'?'#22c55e':'#475569')+'">'+prob+'</span>':'')
@@ -3327,10 +3725,10 @@ function showStatusView(status) {
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 22px;transition:border-color .2s" onmouseover="this.style.borderColor='${color}44'" onmouseout="this.style.borderColor='var(--border)'">
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
             <div style="flex:1">
-              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text)">${p.name}</div>
+              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text)">${esc(p.name)}</div>
               ${prod ? `<div style="font-size:11px;color:#94a3b8;margin-top:3px">🔧 ${prod.turbine} · Hub ${prod.hub}m</div>` : ''}
               <div style="display:flex;gap:14px;margin-top:5px;flex-wrap:wrap">
-                <div style="font-size:12px;color:#cbd5e1;font-weight:500">👤 ${p.investor}</div>
+                <div style="font-size:12px;color:#cbd5e1;font-weight:500">👤 ${esc(p.investor)}</div>
                 <div style="font-size:12px;color:#cbd5e1;font-weight:500">📍 ${p.location}</div>
               </div>
               <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center">
@@ -3736,8 +4134,8 @@ function renderRiskAnalysis(p) {
       const globalIdx = factors.indexOf(f);
       html += '<div style="display:flex;gap:10px;padding:10px 12px;background:'+cfg.col+'0a;border:1px solid '+cfg.col+'22;border-radius:10px;margin-bottom:6px">'
         +'<div style="flex:1">'
-        +'<div style="font-size:11px;color:'+cfg.col+';font-weight:600;margin-bottom:3px">'+f.category+'</div>'
-        +'<div style="font-size:13px;color:var(--text);line-height:1.5">'+f.desc+'</div>'
+        +'<div style="font-size:11px;color:'+cfg.col+';font-weight:600;margin-bottom:3px">'+esc(f.category)+'</div>'
+        +'<div style="font-size:13px;color:var(--text);line-height:1.5">'+esc(f.desc)+'</div>'
         +'</div>'
         +(isAdmin?'<button onclick="deleteRiskFactor('+globalIdx+')" style="background:transparent;border:none;color:#475569;font-size:12px;cursor:pointer;align-self:flex-start;padding:2px" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕</button>':'')
         +'</div>';
@@ -3767,11 +4165,7 @@ async function addRiskFactor() {
   document.getElementById('risk-desc').value = '';
   document.getElementById('psm-risk-add').style.display = 'none';
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({risk_factors:p.risk_factors})
-    });
+    await patchProject(p.id, {risk_factors:p.risk_factors});
   } catch(e) {}
   renderRiskAnalysis(p);
 }
@@ -3781,11 +4175,7 @@ async function deleteRiskFactor(idx) {
   if (!p) return;
   p.risk_factors = (p.risk_factors||[]).filter(function(_,i){ return i !== idx; });
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({risk_factors:p.risk_factors})
-    });
+    await patchProject(p.id, {risk_factors:p.risk_factors});
   } catch(e) {}
   renderRiskAnalysis(p);
 }
@@ -3804,7 +4194,7 @@ function renderSiteGrid(p) {
   function viewRow(label, val) {
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'
       +'<div style="font-size:12px;color:var(--muted)">'+label+'</div>'
-      +'<div style="font-size:13px;font-weight:500;color:var(--text)">'+(val||'<span style="color:var(--muted);font-size:11px">Not set</span>')+'</div>'
+      +'<div style="font-size:13px;font-weight:500;color:var(--text)">'+(val ? esc(val) : '<span style="color:var(--muted);font-size:11px">Not set</span>')+'</div>'
       +'</div>';
   }
   function editSelect(item, val) {
@@ -3863,11 +4253,7 @@ async function saveSiteGrid() {
   const kmEl = document.getElementById('sg-grid_line_km');
   p.grid_line_km = kmEl && kmEl.value ? parseFloat(kmEl.value) : null;
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({site_complexity:p.site_complexity,land_type:p.land_type,grid_type:p.grid_type,grid_voltage:p.grid_voltage,grid_line_km:p.grid_line_km})
-    });
+    await patchProject(p.id, {site_complexity:p.site_complexity,land_type:p.land_type,grid_type:p.grid_type,grid_voltage:p.grid_voltage,grid_line_km:p.grid_line_km});
   } catch(e) {}
   cancelSiteGrid();
 }
@@ -3882,7 +4268,7 @@ function renderWtgInfo(p) {
   function row(label, val) {
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'
       +'<div style="font-size:12px;color:var(--muted)">'+label+'</div>'
-      +'<div style="font-size:13px;font-weight:500;color:var(--text)">'+(val||'<span style="color:var(--muted);font-size:11px">Not set</span>')+'</div>'
+      +'<div style="font-size:13px;font-weight:500;color:var(--text)">'+(val ? esc(val) : '<span style="color:var(--muted);font-size:11px">Not set</span>')+'</div>'
       +'</div>';
   }
   viewEl.innerHTML = row('Manufacturer', p.wtg_manufacturer) + row('Turbine Type / Model', p.wtg_type) + row('Hub Height', p.wtg_hub_height) + row('Number of Turbines', p.wtg_count ? String(p.wtg_count) : null);
@@ -3917,11 +4303,7 @@ async function saveWtgInfo() {
   p.wtg_hub_height = document.getElementById('wtg-hub-height').value.trim();
   p.wtg_count = document.getElementById('wtg-count').value ? parseInt(document.getElementById('wtg-count').value) : null;
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body: JSON.stringify({ wtg_manufacturer: p.wtg_manufacturer, wtg_type: p.wtg_type, wtg_hub_height: p.wtg_hub_height, wtg_count: p.wtg_count })
-    });
+    await patchProject(p.id, { wtg_manufacturer: p.wtg_manufacturer, wtg_type: p.wtg_type, wtg_hub_height: p.wtg_hub_height, wtg_count: p.wtg_count });
   } catch(e) {}
   document.getElementById('psm-wtg-info-btns').style.display = 'block';
   renderWtgInfo(p);
@@ -3950,13 +4332,13 @@ function renderOfftakeInfo(p) {
   } else {
     listEl.innerHTML = summaryHtml + entries.map(function(e, i) {
       const col = typeColors[e.type] || '#64748b';
-      const priceStr = e.price ? e.price+' €/MWh' : '—';
+      const priceStr = e.price ? esc(e.price)+' €/MWh' : '—';
       return '<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid '+col+';border-radius:10px;padding:12px 14px;position:relative;margin-bottom:8px">'
         +(isAdmin ? '<button onclick="deleteOfftakeEntry('+i+')" style="position:absolute;top:8px;right:8px;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px" onmouseover="this.style.color=\'var(--danger)\'" onmouseout="this.style.color=\'var(--muted)\'">✕</button>' : '')
         +(isAdmin ? '<button onclick="showOfftakeForm('+i+')" style="position:absolute;top:8px;right:30px;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'var(--muted)\'">✎</button>' : '')
-        +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:13px;color:'+col+';margin-bottom:8px">'+e.type+'</div>'
+        +'<div style="font-family:Syne,sans-serif;font-weight:700;font-size:13px;color:'+col+';margin-bottom:8px">'+esc(e.type)+'</div>'
         +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'
-        +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Capacity Awarded</div><div style="font-size:13px;font-weight:500;color:var(--text)">'+(e.capacity_mw ? e.capacity_mw+' MW' : '—')+'</div></div>'
+        +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Capacity Awarded</div><div style="font-size:13px;font-weight:500;color:var(--text)">'+(e.capacity_mw ? esc(e.capacity_mw)+' MW' : '—')+'</div></div>'
         +'<div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Price</div><div style="font-size:13px;font-weight:500;color:var(--text)">'+priceStr+'</div></div>'
         +'</div></div>';
     }).join('');
@@ -4009,11 +4391,7 @@ async function saveOfftakeInfo() {
   }
   _editingOfftakeIdx = null;
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body: JSON.stringify({ offtake_entries: p.offtake_entries })
-    });
+    await patchProject(p.id, { offtake_entries: p.offtake_entries });
   } catch(e) {}
   renderOfftakeInfo(p);
 }
@@ -4023,11 +4401,7 @@ async function deleteOfftakeEntry(idx) {
   if (!p || !p.offtake_entries) return;
   p.offtake_entries.splice(idx, 1);
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body: JSON.stringify({ offtake_entries: p.offtake_entries })
-    });
+    await patchProject(p.id, { offtake_entries: p.offtake_entries });
   } catch(e) {}
   renderOfftakeInfo(p);
 }
@@ -4214,11 +4588,7 @@ async function savePsmGeo() {
   const p = PROJECTS.find(function(x){ return parseInt(x.id) === _psmProjectId; });
   if (!p) return;
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body: JSON.stringify({ project_geo: p.project_geo })
-    });
+    await patchProject(p.id, { project_geo: p.project_geo });
     renderProjectGeoLayer();
     const btn = event.target;
     const orig = btn.textContent;
@@ -4250,26 +4620,26 @@ function renderProjectGeoLayer() {
 
     (geo.plant||[]).forEach(function(pt, i) {
       const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:plantColor, fillColor:plantColor, fillOpacity:0.85, weight:2, pane:'projectGeoPane' });
-      m.bindTooltip('<b>'+p.name+'</b>'+(p.capacity_mw?' · '+p.capacity_mw+' MW':'')+(p.investor?'<br>'+p.investor:''), { sticky:true, className:'district-tooltip' });
+      m.bindTooltip('<b>'+esc(p.name)+'</b>'+(p.capacity_mw?' · '+p.capacity_mw+' MW':'')+(p.investor?'<br>'+esc(p.investor):''), { sticky:true, className:'district-tooltip' });
       m.on('click', function(){ openProjSummary(p.id); });
       layerGroup.addLayer(m);
     });
     (geo.ts||[]).forEach(function(pt, i) {
       const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:'#f97316', fillColor:'#f97316', fillOpacity:0.85, weight:2, pane:'projectGeoPane' });
-      m.bindTooltip('<b>'+p.name+'</b> · TS'+(p.capacity_mw?' · '+p.capacity_mw+' MW':'')+(p.investor?'<br>'+p.investor:''), { sticky:true, className:'district-tooltip' });
+      m.bindTooltip('<b>'+esc(p.name)+'</b> · TS'+(p.capacity_mw?' · '+p.capacity_mw+' MW':'')+(p.investor?'<br>'+esc(p.investor):''), { sticky:true, className:'district-tooltip' });
       m.on('click', function(){ openProjSummary(p.id); });
       layerGroup.addLayer(m);
     });
     (geo.prp||[]).forEach(function(pt, i) {
       const m = L.circleMarker([pt[0],pt[1]], { radius:7, color:'#a855f7', fillColor:'#a855f7', fillOpacity:0.85, weight:2, pane:'projectGeoPane' });
-      m.bindTooltip('<b>'+p.name+'</b> · PRP'+(p.capacity_mw?' · '+p.capacity_mw+' MW':'')+(p.investor?'<br>'+p.investor:''), { sticky:true, className:'district-tooltip' });
+      m.bindTooltip('<b>'+esc(p.name)+'</b> · PRP'+(p.capacity_mw?' · '+p.capacity_mw+' MW':'')+(p.investor?'<br>'+esc(p.investor):''), { sticky:true, className:'district-tooltip' });
       m.on('click', function(){ openProjSummary(p.id); });
       layerGroup.addLayer(m);
     });
     (geo.lines||[]).forEach(function(line) {
       if (!line.pts || line.pts.length < 2) return;
       const l = L.polyline(line.pts, { color:'#f59e0b', weight:2.5, pane:'projectGeoPane' });
-      l.bindTooltip('<b>'+p.name+'</b>'+(line.label?' · '+line.label:'')+(p.capacity_mw?' · '+p.capacity_mw+' MW':'')+(p.investor?'<br>'+p.investor:''), { sticky:true, className:'district-tooltip' });
+      l.bindTooltip('<b>'+esc(p.name)+'</b>'+(line.label?' · '+line.label:'')+(p.capacity_mw?' · '+p.capacity_mw+' MW':'')+(p.investor?'<br>'+esc(p.investor):''), { sticky:true, className:'district-tooltip' });
       layerGroup.addLayer(l);
     });
   });
@@ -4374,11 +4744,7 @@ async function saveNewsLink(type) {
   const field = {};
   field[type+'_links'] = p[type+'_links'];
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body: JSON.stringify(field)
-    });
+    await patchProject(p.id, field);
   } catch(e) {}
   cancelNewsLink(type);
 }
@@ -4390,11 +4756,7 @@ async function deleteNewsLink(type, idx) {
   const field = {};
   field[type+'_links'] = p[type+'_links'];
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body: JSON.stringify(field)
-    });
+    await patchProject(p.id, field);
   } catch(e) {}
   renderNewsLinks(p, type);
 }
@@ -4475,11 +4837,7 @@ async function syncPermitStatuses() {
   });
   for (var i = 0; i < updates.length; i++) {
     try {
-      await fetch(SB_URL + '/rest/v1/projects?id=eq.' + updates[i].id, {
-        method: 'PATCH',
-        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ status_permitting: updates[i].status_permitting })
-      });
+      await patchProject(updates[i].id, { status_permitting: updates[i].status_permitting });
     } catch(e) {}
   }
   if (updates.length) console.log('[PermitSync] Updated ' + updates.length + ' projects');
@@ -4491,11 +4849,7 @@ async function refreshPermitStatusForProject(p) {
   if (computed && computed !== p.status_permitting) {
     p.status_permitting = computed;
     try {
-      await fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
-        method: 'PATCH',
-        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ status_permitting: p.status_permitting })
-      });
+      await patchProject(p.id, { status_permitting: p.status_permitting });
     } catch(e) {}
   }
 }
@@ -4538,6 +4892,176 @@ function sortPermitEntries(asp, entries) {
   return arr.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
 }
 
+// Permitting info for the per-project stepper — scoped to the ELEKTRANA aspect only.
+// LU/GD come exclusively from the "Elektrana" aspect (or a combined key containing it, e.g. "Elektrana / TS");
+// TS/PRP/OHL are intentionally ignored here. Urbanizam and Energetska Dozvola are project-wide (Urbanizam is
+// always tied to Elektrana by convention). Also returns development duration (since "Odluka o Izradi") and
+// the number of LU/GD amendments ("Izmena ..." processes) on the Elektrana aspect.
+function computeElektranaPermitInfo(p) {
+  const cats = ['Urbanistički plan','Lokacijski uslovi','Građevinska dozvola','Energetska dozvola'];
+  const stages = {};
+  cats.forEach(function(c){ stages[c] = { status:'none', date:'' }; });
+  const RANK = { none:0, rejected:1, submitted:2, approved:3 };
+  const bump = function(cat, status, date) {
+    if (!stages[cat]) return;
+    if (RANK[status] > RANK[stages[cat].status]) { stages[cat] = { status:status, date:date||'' }; }
+    else if (RANK[status] === RANK[stages[cat].status] && date && date > stages[cat].date) { stages[cat].date = date; }
+  };
+  let odlukaDate = null, luAmend = 0, gdAmend = 0;
+  const ph = p.permit_history;
+
+  if (Array.isArray(ph)) {
+    const LEGACY_MAP = { 'Urbanistic Plan Adopted':'Urbanistički plan', 'Building Permit':'Građevinska dozvola', 'Energy permit':'Energetska dozvola', 'Location Conditions':'Lokacijski uslovi' };
+    ph.forEach(function(e){ const cat = e && e.type && LEGACY_MAP[e.type]; if (cat) bump(cat, 'approved', e.date||''); });
+    return { stages: stages, devDays: null, odlukaDate: null, luAmend: 0, gdAmend: 0 };
+  }
+  if (!ph || typeof ph !== 'object') return { stages: stages, devDays: null, odlukaDate: null, luAmend: 0, gdAmend: 0 };
+
+  Object.keys(ph).forEach(function(aspect){
+    if (aspect === '_completed') return;
+    const entries = ph[aspect];
+    if (!Array.isArray(entries) || !entries.length) return;
+
+    if (aspect === 'Urbanizam') {
+      entries.forEach(function(e){
+        if (e.type === 'Odluka o Izradi') { const d = parseAnyDate(e.date); if (d && (!odlukaDate || d < odlukaDate)) odlukaDate = d; }
+        if (e.type === 'Usvojen' || e.type === 'Approved') bump('Urbanistički plan','approved', e.date||'');
+        else if (e.type === 'Rejected' || e.type === 'Odbijen') bump('Urbanistički plan','rejected', e.date||'');
+        else bump('Urbanistički plan','submitted', e.date||'');
+      });
+      return;
+    }
+    if (aspect === 'Energetska Dozvola') {
+      entries.forEach(function(e){
+        if (e.type === 'Approved' || e.type === 'Usvojen') bump('Energetska dozvola','approved', e.date||'');
+        else if (e.type === 'Rejected' || e.type === 'Odbijen') bump('Energetska dozvola','rejected', e.date||'');
+        else bump('Energetska dozvola','submitted', e.date||'');
+      });
+      return;
+    }
+    // Structured aspects: only Elektrana feeds the LU/GD steps
+    if (aspect.split(' / ').indexOf('Elektrana') === -1) return;
+    entries.forEach(function(e){
+      if (!e || !e.name) return;
+      const cat = classifyPermitProcessName(e.name);
+      if (!cat) return;
+      // Count only APPROVED amendments (a rejected "Izmena ..." doesn't count as an actual amendment)
+      const isAmend = normSrLatin(e.name).indexOf('izmen') > -1;
+      if (isAmend && e.date_approved && cat === 'Lokacijski uslovi') luAmend++;
+      if (isAmend && e.date_approved && cat === 'Građevinska dozvola') gdAmend++;
+      const rejDates = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
+      if (e.date_approved) bump(cat, 'approved', e.date_approved);
+      else if (rejDates.length) bump(cat, 'rejected', rejDates[rejDates.length-1]);
+      else if (e.date_submitted) bump(cat, 'submitted', e.date_submitted);
+    });
+  });
+
+  const devDays = odlukaDate ? Math.round((new Date() - odlukaDate) / 86400000) : null;
+  return { stages: stages, devDays: devDays, odlukaDate: odlukaDate, luAmend: luAmend, gdAmend: gdAmend };
+}
+
+// Horizontal progress stepper for one project — Elektrana timeline + development duration.
+// Amendment counts are surfaced on the connector lines (LU→GD shows LU amendments, GD→ED shows GD amendments).
+function renderPermitStepper(p) {
+  const el = document.getElementById('psm-permit-stepper');
+  if (!el) return;
+  const info = computeElektranaPermitInfo(p);
+  const status = info.stages;
+  const STEPS = [
+    { cat:'Urbanistički plan', short:'Urbanizam' },
+    { cat:'Lokacijski uslovi', short:'Lokacijski' },
+    { cat:'Energetska dozvola', short:'Energetska' },
+    { cat:'Građevinska dozvola', short:'Građevinska' }
+  ];
+  // Order the timeline by when each phase was actually OBTAINED (its approval date). Projects that got a phase
+  // out of the usual sequence — e.g. ED before LU, as on project "Baranda" — show real chronological order.
+  // Phases not yet obtained (no approval) keep the default logical order and sit after the obtained ones.
+  const orderedSteps = STEPS.map(function(s, idx){
+    const st = status[s.cat] || { status:'none', date:'' };
+    const od = (st.status === 'approved') ? parseAnyDate(st.date) : null;
+    return { s:s, defaultIdx:idx, obtained: od ? od.getTime() : null };
+  }).sort(function(a,b){
+    if (a.obtained != null && b.obtained != null) return a.obtained - b.obtained;
+    if (a.obtained != null) return -1;
+    if (b.obtained != null) return 1;
+    return a.defaultIdx - b.defaultIdx;
+  }).map(function(x){ return x.s; });
+  const STYLE = {
+    approved:  { col:'#22c55e', icon:'✓', label:'Odobreno' },
+    submitted: { col:'#f5c842', icon:'●', label:'U toku' },
+    rejected:  { col:'#ef4444', icon:'✕', label:'Odbijeno' },
+    none:      { col:'#334155', icon:'',  label:'—' }
+  };
+  // Amendment badge shown UNDER the LU / GD step (only when that phase actually exists).
+  // Amber = amended N times, green = exists but never amended. Nothing when the phase is absent.
+  const amendBadge = function(n) {
+    if (n > 0) return '<div title="Izmenjen '+n+' put(a)" style="margin-top:5px;font-size:9px;font-weight:700;color:#f59e0b;background:#f59e0b1a;border:1px solid #f59e0b55;border-radius:8px;padding:2px 6px;line-height:1.3;text-align:center">✎ izmenjen ×'+n+'</div>';
+    return '<div title="Nije menjan" style="margin-top:5px;font-size:9px;font-weight:600;color:#22c55e;background:#22c55e14;border:1px solid #22c55e33;border-radius:8px;padding:2px 6px;line-height:1.3;text-align:center">✓ bez izmena</div>';
+  };
+  // Time elapsed between two consecutive completed phases (shown above each connector line).
+  const gapBetween = function(i) {
+    const d1 = parseAnyDate((status[orderedSteps[i].cat]||{}).date);
+    const d2 = parseAnyDate((status[orderedSteps[i+1].cat]||{}).date);
+    if (!d1 || !d2) return '';
+    const days = Math.round((d2 - d1) / 86400000);
+    if (days < 0) return '';
+    return '⏱ ' + formatDurationDays(days);
+  };
+
+  // Development-duration banner
+  let banner;
+  if (info.devDays !== null) {
+    const dstr = info.odlukaDate ? ('0'+info.odlukaDate.getDate()).slice(-2)+'/'+('0'+(info.odlukaDate.getMonth()+1)).slice(-2)+'/'+info.odlukaDate.getFullYear() : '';
+    banner = '<div style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px">'
+      +'<div style="font-size:20px">🏗️</div>'
+      +'<div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)">Projekat u razvoju</div>'
+      +'<div style="font-size:16px;font-weight:700;font-family:Syne,sans-serif;color:var(--accent)">'+formatDurationDays(info.devDays)+'</div>'
+      +'<div style="font-size:10px;color:var(--muted)">od Odluke o Izradi · '+dstr+'</div></div></div>';
+  } else {
+    banner = '<div style="font-size:11px;color:var(--muted);font-style:italic;margin-bottom:14px">Nema datuma „Odluke o Izradi" — trajanje razvoja se ne može izračunati.</div>';
+  }
+
+  const stepHtml = function(s, i) {
+    const st = status[s.cat] || { status:'none', date:'' };
+    const sty = STYLE[st.status] || STYLE.none;
+    // Amendment badge only for LU/GD and only when the phase actually exists (status !== 'none')
+    let amend = '';
+    if (st.status !== 'none') {
+      if (s.cat === 'Lokacijski uslovi') amend = amendBadge(info.luAmend);
+      else if (s.cat === 'Građevinska dozvola') amend = amendBadge(info.gdAmend);
+    }
+    return '<div style="flex:0 0 auto;width:88px;display:flex;flex-direction:column;align-items:center">'
+      + '<div style="margin-top:2px;width:32px;height:32px;border-radius:50%;background:'+(st.status==='none'?'var(--surface2)':sty.col)+';border:2px solid '+sty.col+';color:'+(st.status==='none'?'#334155':'#0b0f1a')+';display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800">'+sty.icon+'</div>'
+      + '<div style="font-size:11px;font-weight:600;color:var(--text);margin-top:6px;text-align:center;line-height:1.2">'+s.short+'</div>'
+      + '<div style="font-size:10px;color:'+sty.col+';margin-top:2px">'+sty.label+'</div>'
+      + (st.date ? '<div style="font-size:11px;font-weight:600;color:#cbd5e1;margin-top:3px">'+esc(st.date)+'</div>' : '')
+      + amend
+      + '</div>';
+  };
+  const connHtml = function(i) {
+    const prevApproved = (status[orderedSteps[i].cat]||{}).status === 'approved';
+    const gap = gapBetween(i);
+    return '<div style="flex:1 1 auto;min-width:24px;display:flex;flex-direction:column;align-items:center">'
+      + '<div style="height:18px;line-height:18px;font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;overflow:hidden;max-width:100%">'+gap+'</div>'
+      + '<div style="width:100%;height:2px;background:'+(prevApproved?'#22c55e':'#1e2d47')+'"></div>'
+      + '</div>';
+  };
+
+  let row = '<div style="display:flex;align-items:flex-start;min-width:420px">';
+  for (let i = 0; i < orderedSteps.length; i++) {
+    row += stepHtml(orderedSteps[i], i);
+    if (i < orderedSteps.length - 1) row += connHtml(i);
+  }
+  row += '</div>';
+
+  const headerLabel = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
+    + '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#3b9eff;background:#3b9eff1a;border:1px solid #3b9eff55;border-radius:6px;padding:3px 8px">⚡ Aspekt: Elektrana</span>'
+    + '<span style="font-size:11px;color:var(--muted)">Timeline prikazuje isključivo aspekt „Elektrana"</span>'
+    + '</div>';
+
+  el.innerHTML = headerLabel + banner + '<div style="overflow-x:auto">' + row + '</div>';
+}
+
 function renderPermitHistory(p) {
   const isAdmin = EDIT_USERS.has(currentUser);
   if (!p.permit_history || Array.isArray(p.permit_history)) {
@@ -4550,7 +5074,17 @@ function renderPermitHistory(p) {
   if (!p.permit_history._completed) p.permit_history._completed = {};
   const completed = p.permit_history._completed;
 
-  const aspects = Object.keys(p.permit_history).filter(function(k){ return k !== '_completed'; });
+  // Order aspects by importance: Urbanizam, Elektrana, TS, PRP, OHL, then anything else.
+  // Combined keys (e.g. "Elektrana / TS") rank by their highest-priority component.
+  const ASPECT_PRIORITY = { 'Urbanizam':0, 'Elektrana':1, 'TS':2, 'PRP':3, 'OHL':4, 'Roads':5, 'Energetska Dozvola':6 };
+  const aspectRank = function(asp) {
+    let best = 99;
+    asp.split(' / ').forEach(function(pt){ const r = ASPECT_PRIORITY[pt]; if (r !== undefined && r < best) best = r; });
+    return best;
+  };
+  const aspects = Object.keys(p.permit_history)
+    .filter(function(k){ return k !== '_completed'; })
+    .sort(function(a, b){ return aspectRank(a) - aspectRank(b) || a.localeCompare(b); });
   const statusCol = {
     Submitted:'#f5c842', Approved:'#22c55e', Rejected:'#ef4444',
     'Odluka o Izradi':'#94a3b8', 'Rani Javni Uvid':'#3b9eff', 'Javni Uvid':'#f5c842', 'Usvojen':'#22c55e'
@@ -4580,10 +5114,10 @@ function renderPermitHistory(p) {
               +'<div style="font-size:13px;font-weight:700;color:'+col+'">'+e.type+'</div>'
               +'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:var(--text)">'+(e.date||'')+'</div>'
               +'</div>'
-              +(e.case_num?'<div style="font-size:11px;color:var(--accent);margin-bottom:2px;display:flex;align-items:center;gap:6px">📋 '+e.case_num
+              +(e.case_num?'<div style="font-size:11px;color:var(--accent);margin-bottom:2px;display:flex;align-items:center;gap:6px">📋 '+esc(e.case_num)
                 +'<button onclick="copyCaseNum(\''+e.case_num.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',this)" title="Kopiraj broj predmeta" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer;padding:0;line-height:1" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'#475569\'">⧉</button>'
                 +'</div>':'')
-              +(e.desc?'<div style="font-size:12px;color:var(--muted)">'+e.desc+'</div>':'')
+              +(e.desc?'<div style="font-size:12px;color:var(--muted)">'+esc(e.desc)+'</div>':'')
               +(isAdmin?'<div style="display:flex;gap:10px;margin-top:4px">'
                 +'<button onclick="showEditPermitForm(\''+asp.replace(/'/g,"\\'")+'\',' +i+')" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'#475569\'">✏️ Edit</button>'
                 +'<button onclick="deletePermitEntry(\''+asp.replace(/'/g,"\\'")+'\','+i+')" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#475569\'">✕ Remove</button>'
@@ -4641,10 +5175,10 @@ function renderPermitHistory(p) {
             }
             return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">'
               +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-              +'<div style="font-size:13px;font-weight:700;color:var(--text)">'+(e.name||'Process')+'</div>'
+              +'<div style="font-size:13px;font-weight:700;color:var(--text)">'+esc(e.name||'Process')+'</div>'
               +'<span style="font-size:11px;font-weight:600;color:'+statusColor+';background:'+statusColor+'15;padding:2px 8px;border-radius:10px">'+statusLabel+'</span>'
               +'</div>'
-              +(e.case_num?'<div style="font-size:11px;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px">📋 '+e.case_num
+              +(e.case_num?'<div style="font-size:11px;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px">📋 '+esc(e.case_num)
                 +'<button onclick="copyCaseNum(\''+e.case_num.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\',this)" title="Kopiraj broj predmeta" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer;padding:0;line-height:1" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'#475569\'">⧉</button>'
                 +'</div>':'')
               +'<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:4px">'
@@ -4652,7 +5186,7 @@ function renderPermitHistory(p) {
               +rejDates.map(function(d,ri){ return '<div style="font-size:11px"><span style="color:var(--muted)">Odbijeno'+(rejDates.length>1?' '+(ri+1):'')+': </span><span style="color:#ef4444;font-weight:600">'+d+'</span></div>'; }).join('')
               +(e.date_approved?'<div style="font-size:11px"><span style="color:var(--muted)">Odobreno: </span><span style="color:#22c55e;font-weight:600">'+e.date_approved+'</span></div>':'')
               +'</div>'
-              +(e.desc?'<div style="font-size:12px;color:var(--muted);margin-top:4px">'+e.desc+'</div>':'')
+              +(e.desc?'<div style="font-size:12px;color:var(--muted);margin-top:4px">'+esc(e.desc)+'</div>':'')
               + durationHtml
               +(isAdmin?'<div style="display:flex;gap:10px;margin-top:8px">'
                 +'<button onclick="showEditProcessForm(\''+asp.replace(/'/g,"\\'")+'\','+i+')" style="background:transparent;border:none;color:#475569;font-size:11px;cursor:pointer" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'#475569\'">✏️ Edit</button>'
@@ -4770,6 +5304,7 @@ function renderPermitHistory(p) {
     +'</div>';
   }).join('');
 
+  renderPermitStepper(p);
   document.getElementById('psm-aspects-list').innerHTML = aspectBlocks;
   document.getElementById('psm-permit-btns').innerHTML = isAdmin
     ? '<button onclick="openNewAspectForm()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:7px 14px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--muted)\'">+ New Aspect</button>'
@@ -4792,11 +5327,7 @@ function toggleAspectDone(asp) {
   if (!p) return;
   if (!p.permit_history._completed) p.permit_history._completed = {};
   p.permit_history._completed[asp] = !p.permit_history._completed[asp];
-  fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
-    method: 'PATCH',
-    headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-    body: JSON.stringify({ permit_history: p.permit_history })
-  });
+  patchProject(p.id, { permit_history: p.permit_history });
   renderPermitHistory(p);
 }
 
@@ -4862,11 +5393,7 @@ async function saveStructuredEdit() {
   };
   document.getElementById('struct-edit-form')?.remove();
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({permit_history:p.permit_history})
-    });
+    await patchProject(p.id, {permit_history:p.permit_history});
   } catch(e) {}
   renderPermitHistory(p);
 }
@@ -4920,11 +5447,7 @@ async function saveInlineProcess(asp) {
     desc:     document.getElementById('pdesc_'+aid).value.trim()
   });
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({permit_history:p.permit_history})
-    });
+    await patchProject(p.id, {permit_history:p.permit_history});
   } catch(e) {}
   await refreshPermitStatusForProject(p);
   renderPermitHistory(p);
@@ -4943,11 +5466,7 @@ async function saveInlineEntry(asp, aid) {
     desc:     document.getElementById('pdesc_'+aid).value.trim()
   });
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({permit_history:p.permit_history})
-    });
+    await patchProject(p.id, {permit_history:p.permit_history});
   } catch(e) {}
   await refreshPermitStatusForProject(p);
   renderPermitHistory(p);
@@ -5003,11 +5522,7 @@ async function saveEditProcess(asp, idx) {
     desc:           document.getElementById('pdesc_'+aid).value.trim()
   };
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({permit_history:p.permit_history})
-    });
+    await patchProject(p.id, {permit_history:p.permit_history});
   } catch(e) {}
   await refreshPermitStatusForProject(p);
   renderPermitHistory(p);
@@ -5101,11 +5616,7 @@ async function savePermitEdit() {
   };
   cancelPermitForm();
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({permit_history:p.permit_history})
-    });
+    await patchProject(p.id, {permit_history:p.permit_history});
   } catch(e) {}
   renderPermitHistory(p);
 }
@@ -5123,11 +5634,7 @@ async function addPermitEntry() {
   p.permit_history[asp].push({ date: date, type: type, case_num: case_num, desc: desc });
   cancelPermitForm();
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({permit_history:p.permit_history})
-    });
+    await patchProject(p.id, {permit_history:p.permit_history});
   } catch(e) {}
   renderPermitHistory(p);
 }
@@ -5139,11 +5646,7 @@ async function deletePermitEntry(asp, idx) {
   const toRemove = sorted[idx];
   p.permit_history[asp] = p.permit_history[asp].filter(function(e){ return e !== toRemove; });
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({permit_history:p.permit_history})
-    });
+    await patchProject(p.id, {permit_history:p.permit_history});
   } catch(e) {}
   renderPermitHistory(p);
 }
@@ -5207,11 +5710,7 @@ async function addNewAspect() {
   document.getElementById('psm-new-aspect-form').style.display = 'none';
   _activeAspect = aspectName;
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({permit_history:p.permit_history})
-    });
+    await patchProject(p.id, {permit_history:p.permit_history});
   } catch(e) {}
   renderPermitHistory(p);
 }
@@ -5248,11 +5747,7 @@ async function saveRenameAspect(oldAsp) {
   p.permit_history[newAsp] = p.permit_history[oldAsp];
   delete p.permit_history[oldAsp];
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({permit_history:p.permit_history})
-    });
+    await patchProject(p.id, {permit_history:p.permit_history});
   } catch(e) {}
   renderPermitHistory(p);
 }
@@ -5264,11 +5759,7 @@ async function deleteAspect(asp, event) {
   delete p.permit_history[asp];
   if (_activeAspect === asp) _activeAspect = Object.keys(p.permit_history)[0] || null;
   try {
-    await fetch(SB_URL+'/rest/v1/projects?id=eq.'+p.id, {
-      method:'PATCH',
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},
-      body:JSON.stringify({permit_history:p.permit_history})
-    });
+    await patchProject(p.id, {permit_history:p.permit_history});
   } catch(e) {}
   renderPermitHistory(p);
 }
@@ -5326,11 +5817,7 @@ async function saveNotes() {
   p.notes = document.getElementById('psm-notes-input').value;
   // Save to Supabase
   try {
-    await fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
-      method: 'PATCH',
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ notes: p.notes })
-    });
+    await patchProject(p.id, { notes: p.notes });
   } catch(e) {}
   document.getElementById('psm-notes-view').textContent = p.notes || 'No notes yet.';
   document.getElementById('psm-notes-view').style.color = p.notes ? 'var(--text)' : 'var(--muted)';
@@ -5418,17 +5905,13 @@ async function saveOverviewEdit() {
   const msg = document.getElementById('ov-edit-msg');
   let saveOk = false;
   try {
-    const resp = await fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
-      method: 'PATCH',
-      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + currentToken, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({
-        status_overall: p.status_overall,
-        probability: p.probability,
-        status_permitting: p.status_permitting,
-        energy_license: p.energy_license,
-        comment: p.comment,
-        rtb_date: p.rtb_date || null
-      })
+    const resp = await patchProject(p.id, {
+      status_overall: p.status_overall,
+      probability: p.probability,
+      status_permitting: p.status_permitting,
+      energy_license: p.energy_license,
+      comment: p.comment,
+      rtb_date: p.rtb_date || null
     });
     if (resp.ok) {
       saveOk = true;
@@ -5620,10 +6103,10 @@ function renderProjModal() {
         const deadline = getDeadline(p.comment);
         return '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)">'
           +'<div style="flex:1;min-width:0">'
-          +'<div onclick="openProjSummary('+p.id+')" style="font-size:13px;font-weight:600;color:var(--text);cursor:pointer;transition:color .15s" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'var(--text)\'">'+(p.name)+'</div>'
-          +'<div style="font-size:11px;color:var(--muted);margin-top:2px">\uD83D\uDC64 '+p.investor+' \u00B7 \uD83D\uDCCD '+p.location+'</div>'
+          +'<div onclick="openProjSummary('+p.id+')" style="font-size:13px;font-weight:600;color:var(--text);cursor:pointer;transition:color .15s" onmouseover="this.style.color=\'var(--accent)\'" onmouseout="this.style.color=\'var(--text)\'">'+esc(p.name)+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);margin-top:2px">\uD83D\uDC64 '+esc(p.investor)+' \u00B7 \uD83D\uDCCD '+esc(p.location)+'</div>'
           +'<div style="display:flex;gap:6px;margin-top:5px;align-items:center;flex-wrap:wrap">'
-          +'<span style="font-size:11px;background:'+tc+'22;color:'+tc+';padding:2px 8px;border-radius:8px">'+p.technology.trim()+'</span>'
+          +'<span style="font-size:11px;background:'+tc+'22;color:'+tc+';padding:2px 8px;border-radius:8px">'+esc(p.technology.trim())+'</span>'
           +(prob?'<span style="font-size:11px;color:'+(prob==='HIGH'?'#22c55e':'#475569')+';font-weight:600">'+prob+'</span>':'')
           +(p.status_permitting?'<span style="font-size:11px;color:var(--muted);background:var(--surface2);padding:2px 7px;border-radius:8px">'+p.status_permitting+'</span>':'')
           +(deadline?'<span style="font-size:11px;color:#ef4444;font-weight:600">\u23F1 '+deadline+'</span>':'')
@@ -5641,6 +6124,22 @@ const SB_URL = 'https://iubmdftpbvxrexteasdn.supabase.co';
 const SB_KEY = 'sb_publishable_kNbRTDS1DKWRP429VH_z-g_864muQfo';
 const _supabase = window.supabase.createClient(SB_URL, SB_KEY);
 let currentToken = SB_KEY;
+
+// Centralized PATCH of a single project row. Returns the fetch Promise<Response>
+// so callers can `await` it and check `.ok`. Uses the logged-in user's token so
+// row-level security applies. Replaces ~20 duplicated fetch(...) blocks.
+function patchProject(id, body) {
+  return fetch(SB_URL + '/rest/v1/projects?id=eq.' + id, {
+    method: 'PATCH',
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + currentToken,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify(body)
+  });
+}
 
 async function loadProjectsFromDB() {
   try {
@@ -5696,30 +6195,21 @@ async function loadProjectsFromDB() {
 
 async function saveProjectToDB(p) {
   try {
-    const res = await fetch(SB_URL + '/rest/v1/projects?id=eq.' + p.id, {
-      method: 'PATCH',
-      headers: {
-        'apikey': SB_KEY,
-        'Authorization': 'Bearer ' + currentToken,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({
-        name:              p.name,
-        investor:          p.investor,
-        location:          p.location,
-        capacity_mw:       p.capacity_mw,
-        technology:        p.technology,
-        law:               p.law,
-        status_permitting: p.status_permitting,
-        cfd:               p.cfd,
-        status_overall:    p.status_overall,
-        comment:           p.comment,
-        probability:       p.probability,
-        notes:             p.notes,
-        energy_license:    p.energy_license,
-        rtb_date:          p.rtb_date || null
-      })
+    const res = await patchProject(p.id, {
+      name:              p.name,
+      investor:          p.investor,
+      location:          p.location,
+      capacity_mw:       p.capacity_mw,
+      technology:        p.technology,
+      law:               p.law,
+      status_permitting: p.status_permitting,
+      cfd:               p.cfd,
+      status_overall:    p.status_overall,
+      comment:           p.comment,
+      probability:       p.probability,
+      notes:             p.notes,
+      energy_license:    p.energy_license,
+      rtb_date:          p.rtb_date || null
     });
     return res.ok;
   } catch(e) {
@@ -5958,7 +6448,7 @@ function initApp() {
 </script>
 <!-- PROJECT SUMMARY MODAL -->
 <div id="proj-summary-modal" onclick="if(event.target===this)closeProjSummary()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:600;align-items:center;justify-content:center">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:20px;width:min(780px,95vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.6)">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:20px;width:min(1040px,96vw);max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.6)">
 
     <!-- Header -->
     <div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;flex-shrink:0">
@@ -6229,6 +6719,7 @@ function initApp() {
 
       <!-- PERMITS TAB -->
       <div id="psm-tab-permits" style="display:none">
+        <div id="psm-permit-stepper" style="margin-bottom:18px"></div>
         <div id="psm-aspects-list" style="margin-bottom:12px"></div>
         <div id="psm-aspect-add-form" style="display:none;background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:12px">
           <div id="permit-form-title" style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:12px">Add Permit Entry</div>
