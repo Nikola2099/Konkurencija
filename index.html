@@ -2160,10 +2160,18 @@ function collectPermitPhaseData(projects, aspectFilter) {
           byYear[cat][yApp] = (byYear[cat][yApp]||0) + 1;
           (byYearProjects[cat][yApp] = byYearProjects[cat][yApp] || []).push(p.name);
           approvedByCat[cat].add(p.id);
-          if (first.date_submitted) {
-            const dSub = parseAnyDate(first.date_submitted);
-            if (dSub && dApp >= dSub) durations[cat].push({ days: daysBetweenDates(dSub, dApp), year: yApp, project: p.name, law: p.law||'', projectId: p.id });
-          }
+          // Duration = from the FIRST request submission to the first (non-rejected) approval.
+          // "... na osnovu usaglašenog zahteva" is a continuation of the original submission after a
+          // rejection, so the clock starts at the earliest original submission — not the resubmission.
+          // Amendments ("Izmena ...") are excluded; they modify an already-issued permit and are always
+          // submitted after approval anyway.
+          const coreSubs = list
+            .filter(e => e.date_submitted && parseAnyDate(e.date_submitted) && normSrLatin(e.name).indexOf('izmen') === -1)
+            .map(e => parseAnyDate(e.date_submitted))
+            .filter(d => d <= dApp)
+            .sort((a,b) => a - b);
+          const dSub = coreSubs.length ? coreSubs[0] : (first.date_submitted ? parseAnyDate(first.date_submitted) : null);
+          if (dSub && dApp >= dSub) durations[cat].push({ days: daysBetweenDates(dSub, dApp), year: yApp, project: p.name, law: p.law||'', projectId: p.id });
         }
         // Pending = latest (by date_submitted) entry in this category that itself has no approval yet
         // and wasn't itself rejected (a rejected submission is resolved, not "waiting"). Checked per
