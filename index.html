@@ -2393,9 +2393,13 @@ function collectPdrToLuGap(projects) {
   return out;
 }
 
-// Gap between the first LU being issued (date_approved) and the first GD request being
-// submitted (date_submitted), per project — both scoped to the Elektrana aspect.
-// Returns [{days, project}] — only projects where the GD submission is at/after LU issuance.
+// Gap between the first LU being issued (date_approved) and the first GD, per project —
+// both scoped to the Elektrana aspect. The GD reference date is its submission date, but
+// when a GD entry has no submission date recorded we fall back to its approval date
+// (date_approved) so early cases entered with only an issue date still count (e.g. Kovačica,
+// whose original GD has only an approval date — otherwise a much later amendment's submission
+// would be used instead).
+// Returns [{days, project}] — only projects where the GD date is at/after LU issuance.
 function collectLuToGdGap(projects) {
   const out = [];
   projects.forEach(function(p) {
@@ -2411,7 +2415,7 @@ function collectLuToGdGap(projects) {
         if (!e || !e.name) return;
         const cat = classifyPermitProcessName(e.name);
         if (cat === 'Lokacijski uslovi' && e.date_approved) { const d = parseAnyDate(e.date_approved); if (d) luApp.push(d); }
-        if (cat === 'Građevinska dozvola' && e.date_submitted) { const d = parseAnyDate(e.date_submitted); if (d) gdSub.push(d); }
+        if (cat === 'Građevinska dozvola') { const d = parseAnyDate(e.date_submitted || e.date_approved); if (d) gdSub.push(d); }
       });
     });
     if (!luApp.length || !gdSub.length) return;
