@@ -1349,87 +1349,40 @@
 <!-- PERMITTING VIEW -->
 <div class="view" id="permitting-view" style="padding:32px">
 
-  <!-- Permitting Speed & Backlog Analysis -->
-  <div>
-    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text);margin-bottom:4px">Brzina i status dozvola</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Prosečno vreme čekanja, trend kroz godine i projekti trenutno u proceduri (iz Permitting → svi aspekti)</div>
+  <!-- Prosečno vreme ishodovanja — samo Elektrana, svi projekti -->
+  <div id="perm-hero" style="margin-bottom:32px">
+    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:var(--text);margin-bottom:4px">Prosečno vreme ishodovanja dozvola</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:18px">Prosek preko svih projekata · LU i GD za aspekt Elektrana (podnošenje → izdavanje), PDR ceo postupak (Odluka o izradi → usvajanje)</div>
+    <div id="perm-hero-cards" style="display:flex;align-items:stretch;gap:14px"></div>
 
-    <!-- Aspect filter -->
-    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="perm-aspect-btns">
-      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px">Aspekt</span>
-      <button class="perm-aspect-btn active" data-aspect="Elektrana" onclick="setPermAspect('Elektrana')">Elektrana</button>
-      <button class="perm-aspect-btn" data-aspect="TS" onclick="setPermAspect('TS')">TS</button>
-    </div>
-
-    <!-- Law filter -->
-    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="perm-law-btns">
-      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px">Zakon</span>
-      <button class="perm-aspect-btn active" data-law="" onclick="setPermLaw('')">All</button>
-      <button class="perm-aspect-btn" data-law="Old law" onclick="setPermLaw('Old law')">Old Law</button>
-      <button class="perm-aspect-btn" data-law="New law  1. window" onclick="setPermLaw('New law  1. window')">1. Prozor</button>
-      <button class="perm-aspect-btn" data-law="New law  2. window" onclick="setPermLaw('New law  2. window')">2. Prozor</button>
-      <button class="perm-aspect-btn" data-law="New law  3. window" onclick="setPermLaw('New law  3. window')">3. Prozor</button>
-      <button class="perm-aspect-btn" data-law="New law  4. window" onclick="setPermLaw('New law  4. window')">4. Prozor</button>
-    </div>
-
-    <!-- Technology filter -->
-    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:20px" id="perm-tech-btns">
-      <span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-right:4px">Tehnologija</span>
-      <button class="perm-aspect-btn active" data-tech="" onclick="setPermTech('')">All</button>
-      <button class="perm-aspect-btn" data-tech="Wind" onclick="setPermTech('Wind')">Wind</button>
-      <button class="perm-aspect-btn" data-tech="Solar" onclick="setPermTech('Solar')">Solar</button>
-      <button class="perm-aspect-btn" data-tech="Hybrid" onclick="setPermTech('Hybrid')">Hybrid</button>
-      <button class="perm-aspect-btn" data-tech="BESS" onclick="setPermTech('BESS')">BESS</button>
-    </div>
-
-    <!-- KPI summary row -->
-    <div class="stats-row" id="perm-kpi-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px"></div>
-
-    <!-- Stat cards: avg/median wait per phase -->
-    <div class="stats-row" id="perm-wait-stats" style="grid-template-columns:repeat(2,1fr)"></div>
-
-    <!-- Aging buckets + funnel -->
-    <div class="two-col" style="margin-top:20px">
+    <div class="two-col" style="margin-top:24px">
       <div class="chart-card">
-        <div class="chart-title">Starost predmeta u čekanju (backlog)</div>
-        <div id="perm-aging-buckets"></div>
+        <div class="chart-title">Lokacijski uslovi po godinama + ukupna snaga (MW)</div>
+        <div style="display:flex;gap:14px;align-items:stretch">
+          <div style="position:relative;height:320px;flex:1;min-width:0"><canvas id="perm-hero-chart-lu"></canvas></div>
+          <div id="perm-hero-lu-projects" style="flex:0 0 160px;border-left:1px solid var(--border);padding-left:14px;overflow-y:auto;max-height:320px"></div>
+        </div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">Napredak kroz faze (funnel)</div>
-        <div id="perm-funnel"></div>
+        <div class="chart-title">Građevinska dozvola po godinama + ukupna snaga (MW)</div>
+        <div style="display:flex;gap:14px;align-items:stretch">
+          <div style="position:relative;height:320px;flex:1;min-width:0"><canvas id="perm-hero-chart-gd"></canvas></div>
+          <div id="perm-hero-gd-projects" style="flex:0 0 160px;border-left:1px solid var(--border);padding-left:14px;overflow-y:auto;max-height:320px"></div>
+        </div>
       </div>
     </div>
 
-    <div class="two-col" style="margin-top:20px">
-      <div class="chart-card">
-        <div class="chart-title">Prosečno vreme čekanja po godini (dana)</div>
-        <div style="position:relative;height:300px"><canvas id="perm-chart-wait-trend"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">Broj izdatih dozvola po godini — sve faze</div>
-        <div style="position:relative;height:300px"><canvas id="perm-chart-year-all"></canvas></div>
-      </div>
-    </div>
+    <div id="perm-hero-rejection" style="display:flex;gap:14px;margin-top:14px"></div>
 
-    <!-- Rejection analysis + law comparison -->
-    <div class="two-col" style="margin-top:20px">
+    <div class="two-col" style="margin-top:24px">
       <div class="chart-card">
-        <div class="chart-title">Analiza odbijanja</div>
-        <div id="perm-rejection-analysis"></div>
+        <div class="chart-title">Čeka na LU — trenutno</div>
+        <div id="perm-hero-pending-lu"></div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">Prosečno vreme po zakonu / prozoru (dana)</div>
-        <div style="position:relative;height:300px"><canvas id="perm-chart-law-compare"></canvas></div>
+        <div class="chart-title">Čeka na GD — trenutno</div>
+        <div id="perm-hero-pending-gd"></div>
       </div>
-    </div>
-
-    <!-- Pending permits table -->
-    <div class="chart-card" style="margin-top:20px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <div class="chart-title" style="margin-bottom:0">Trenutno u čekanju</div>
-        <button onclick="exportPendingCsv()" id="perm-export-btn" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--muted);font-size:12px;cursor:pointer;transition:all .2s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">⬇ Export CSV</button>
-      </div>
-      <div id="perm-pending-list"></div>
     </div>
   </div>
 </div>
@@ -2369,16 +2322,409 @@ window.setPermTech = function(tech) {
 };
 
 function renderPermittingCharts() {
-  const filtered = PROJECTS.filter(p =>
-    (!_permLaw  || (p.law||'').trim() === _permLaw.trim()) &&
-    (!_permTech || p.technology.trim() === _permTech)
-  );
-  // Law comparison ignores the law filter (that's the whole point — compare across laws),
-  // but still respects the technology filter.
-  const filteredNoLaw = PROJECTS.filter(p => (!_permTech || p.technology.trim() === _permTech));
+  renderPermitHero();
+  renderPermitHeroChart();
+  renderPermitRejectionRates();
+  renderPermitPendingHero();
+}
 
-  renderPermitWaitAnalysis(filtered);
-  renderPermitLawComparison(filteredNoLaw);
+// Average PDR (Plan detaljne regulacije) adoption duration across all projects:
+// from "Odluka o Izradi" to "Usvojen" in each project's Urbanizam timeline.
+// Returns [{days, year, project}] (year = adoption year). One entry per project at most.
+function collectPdrDurations(projects) {
+  const out = [];
+  projects.forEach(function(p) {
+    const ph = p.permit_history;
+    if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return;
+    const entries = ph['Urbanizam'];
+    if (!Array.isArray(entries) || !entries.length) return;
+    const stageDate = function(type) {
+      const m = entries
+        .filter(function(e){ return e && e.type === type && e.date && parseAnyDate(e.date); })
+        .sort(function(a,b){ return parseAnyDate(a.date) - parseAnyDate(b.date); });
+      return m.length ? parseAnyDate(m[0].date) : null;
+    };
+    const d1 = stageDate('Odluka o Izradi'), d2 = stageDate('Usvojen');
+    if (d1 && d2 && d2 >= d1) {
+      out.push({ days: Math.round((d2 - d1) / 86400000), year: d2.getFullYear(), project: p.name });
+    }
+  });
+  return out;
+}
+
+// Gap between PDR adoption ("Usvojen") and the first Lokacijski uslovi request being
+// submitted, per project. LU is scoped to the Elektrana aspect (same as the hero LU card).
+// Returns [{days, project}] — only projects where the LU submission is at/after PDR adoption.
+function collectPdrToLuGap(projects) {
+  const out = [];
+  projects.forEach(function(p) {
+    const ph = p.permit_history;
+    if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return;
+
+    // PDR adoption date = earliest "Usvojen" in the Urbanizam timeline
+    const urb = Array.isArray(ph['Urbanizam']) ? ph['Urbanizam'] : [];
+    const usvojenDates = urb
+      .filter(function(e){ return e && e.type === 'Usvojen' && e.date && parseAnyDate(e.date); })
+      .map(function(e){ return parseAnyDate(e.date); })
+      .sort(function(a,b){ return a-b; });
+    if (!usvojenDates.length) return;
+    const pdrDate = usvojenDates[0];
+
+    // First LU submission = earliest date_submitted among LU-classified entries in Elektrana aspect
+    const luSubs = [];
+    Object.keys(ph).forEach(function(aspect) {
+      if (aspect === '_completed') return;
+      if (!DEFAULT_ASPECTS.includes(aspect) && aspect.split(' / ').indexOf('Elektrana') === -1) return;
+      const entries = ph[aspect];
+      if (!Array.isArray(entries)) return;
+      entries.forEach(function(e) {
+        if (!e || !e.name || !e.date_submitted) return;
+        if (classifyPermitProcessName(e.name) !== 'Lokacijski uslovi') return;
+        const d = parseAnyDate(e.date_submitted);
+        if (d) luSubs.push(d);
+      });
+    });
+    if (!luSubs.length) return;
+    luSubs.sort(function(a,b){ return a-b; });
+    const luDate = luSubs[0];
+
+    if (luDate >= pdrDate) out.push({ days: daysBetweenDates(pdrDate, luDate), project: p.name });
+  });
+  return out;
+}
+
+// Gap between the first LU being issued (date_approved) and the first GD request being
+// submitted (date_submitted), per project — both scoped to the Elektrana aspect.
+// Returns [{days, project}] — only projects where the GD submission is at/after LU issuance.
+function collectLuToGdGap(projects) {
+  const out = [];
+  projects.forEach(function(p) {
+    const ph = p.permit_history;
+    if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return;
+    const luApp = [], gdSub = [];
+    Object.keys(ph).forEach(function(aspect) {
+      if (aspect === '_completed') return;
+      if (!DEFAULT_ASPECTS.includes(aspect) && aspect.split(' / ').indexOf('Elektrana') === -1) return;
+      const entries = ph[aspect];
+      if (!Array.isArray(entries)) return;
+      entries.forEach(function(e) {
+        if (!e || !e.name) return;
+        const cat = classifyPermitProcessName(e.name);
+        if (cat === 'Lokacijski uslovi' && e.date_approved) { const d = parseAnyDate(e.date_approved); if (d) luApp.push(d); }
+        if (cat === 'Građevinska dozvola' && e.date_submitted) { const d = parseAnyDate(e.date_submitted); if (d) gdSub.push(d); }
+      });
+    });
+    if (!luApp.length || !gdSub.length) return;
+    luApp.sort(function(a,b){ return a-b; });
+    gdSub.sort(function(a,b){ return a-b; });
+    if (gdSub[0] >= luApp[0]) out.push({ days: daysBetweenDates(luApp[0], gdSub[0]), project: p.name });
+  });
+  return out;
+}
+
+// Per-year counts of first-issued GD and LU, plus total MW of projects that got their GD that year.
+// Scoped to the Elektrana aspect, across all projects. One count per project per category (earliest approval).
+function collectGdLuByYear(projects) {
+  const gdCount = {}, luCount = {}, gdMW = {}, luMW = {};
+  const gdProjects = {}, luProjects = {};
+  projects.forEach(function(p) {
+    const ph = p.permit_history;
+    if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return;
+    const gdApp = [], luApp = [];
+    Object.keys(ph).forEach(function(aspect) {
+      if (aspect === '_completed') return;
+      if (!DEFAULT_ASPECTS.includes(aspect) && aspect.split(' / ').indexOf('Elektrana') === -1) return;
+      const entries = ph[aspect];
+      if (!Array.isArray(entries)) return;
+      entries.forEach(function(e) {
+        if (!e || !e.name || !e.date_approved) return;
+        const cat = classifyPermitProcessName(e.name);
+        const d = parseAnyDate(e.date_approved);
+        if (!d) return;
+        if (cat === 'Građevinska dozvola') gdApp.push(d);
+        else if (cat === 'Lokacijski uslovi') luApp.push(d);
+      });
+    });
+    if (gdApp.length) {
+      gdApp.sort(function(a,b){ return a-b; });
+      const y = gdApp[0].getFullYear();
+      gdCount[y] = (gdCount[y]||0) + 1;
+      gdMW[y] = (gdMW[y]||0) + (Number(p.capacity_mw)||0);
+      (gdProjects[y] = gdProjects[y] || []).push({ name: p.name, mw: Number(p.capacity_mw)||0, tech: (p.technology||'').trim() });
+    }
+    if (luApp.length) {
+      luApp.sort(function(a,b){ return a-b; });
+      const y = luApp[0].getFullYear();
+      luCount[y] = (luCount[y]||0) + 1;
+      luMW[y] = (luMW[y]||0) + (Number(p.capacity_mw)||0);
+      (luProjects[y] = luProjects[y] || []).push({ name: p.name, mw: Number(p.capacity_mw)||0, tech: (p.technology||'').trim() });
+    }
+  });
+  const yrsObj = {}; [gdCount, luCount].forEach(function(o){ Object.keys(o).forEach(function(y){ yrsObj[y] = true; }); });
+  const yrs = Object.keys(yrsObj).map(Number).sort(function(a,b){ return a-b; });
+  return { yrs: yrs, gdCount: gdCount, luCount: luCount, gdMW: gdMW, luMW: luMW, gdProjects: gdProjects, luProjects: luProjects };
+}
+
+// Fills a chart's side panel with the list of projects for a given year.
+// Each project shows a VE/SE technology badge and its capacity in MW.
+function renderChartProjectsPanel(panelId, year, projs, mw) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  const header = '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px">'+year+'</div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">'+projs.length+' proj.'+(mw!=null?' · '+Math.round(mw)+' MW':'')+'</div>';
+  const badge = function(tech) {
+    if (tech === 'Wind') return '<span style="font-size:9px;font-weight:800;color:#3b9eff;background:#3b9eff22;border-radius:4px;padding:1px 4px;margin-right:5px">VE</span>';
+    if (tech === 'Solar') return '<span style="font-size:9px;font-weight:800;color:#f5c842;background:#f5c84222;border-radius:4px;padding:1px 4px;margin-right:5px">SE</span>';
+    return '';
+  };
+  const body = projs.length
+    ? projs.map(function(p){
+        return '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);line-height:1.3">'
+          + '<span style="font-size:12px;color:var(--text)">'+badge(p.tech)+esc(p.name)+'</span>'
+          + '<span style="font-size:11px;color:var(--muted);white-space:nowrap">'+Math.round(p.mw)+' MW</span>'
+          + '</div>';
+      }).join('')
+    : '<div style="font-size:12px;color:var(--muted);font-style:italic">Nema projekata</div>';
+  panel.innerHTML = header + body;
+}
+
+// Per-phase yearly chart: line = # of permits issued (left axis), bars = total MW that year (right axis).
+function renderPhaseYearChart(canvasId, countLabel, color, countByYear, mwByYear, projByYear, panelId) {
+  if (!document.getElementById(canvasId)) return;
+  const yrsObj = {}; [countByYear, mwByYear].forEach(function(o){ Object.keys(o).forEach(function(y){ yrsObj[y] = true; }); });
+  const present = Object.keys(yrsObj).map(Number).sort(function(a,b){ return a-b; });
+  // Fill the full continuous range so years with no issued permits still show up (as 0).
+  let yrs = present;
+  if (present.length) {
+    yrs = [];
+    for (let y = present[0]; y <= present[present.length-1]; y++) yrs.push(y);
+  }
+  makeChart(canvasId, {
+    type: 'bar',
+    data: {
+      labels: yrs.map(String),
+      datasets: [
+        { type: 'line', label: countLabel, data: yrs.map(function(y){ return countByYear[y]||0; }),
+          borderColor: color, backgroundColor: color+'22', borderWidth: 2.5, pointRadius: 4, tension: 0.3, yAxisID: 'y', order: 1 },
+        { label: 'Ukupna snaga (MW)', data: yrs.map(function(y){ return Math.round(mwByYear[y]||0); }),
+          backgroundColor: color+'44', borderRadius: 5, yAxisID: 'y1', order: 2 }
+      ]
+    },
+    options: {
+      interaction: { mode: 'index', intersect: false },
+      onHover: function(evt, active) {
+        if (!panelId || !active || !active.length) return;
+        const idx = active[0].index;
+        const year = yrs[idx];
+        renderChartProjectsPanel(panelId, year, projByYear[year] || [], mwByYear[year] || 0);
+      },
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+        tooltip: { callbacks: {
+          label: function(ctx) { return ctx.dataset.label + ': ' + ctx.raw + (ctx.dataset.yAxisID === 'y1' ? ' MW' : ''); }
+        } }
+      },
+      scales: {
+        x: { ticks: { color: '#e2e8f0' }, grid: { color: '#1e2d47' } },
+        y: { beginAtZero: true, max: 8, position: 'left', ticks: { color: '#64748b', stepSize: 1 }, grid: { color: '#1e2d47' }, title: { display: true, text: 'broj dozvola', color: '#64748b', font: { size: 11 } } },
+        y1: { beginAtZero: true, max: 1300, position: 'right', ticks: { color: '#64748b' }, grid: { drawOnChartArea: false }, title: { display: true, text: 'MW', color: '#64748b', font: { size: 11 } } }
+      }
+    }
+  });
+  // Initial placeholder in the side panel
+  const panel = panelId && document.getElementById(panelId);
+  if (panel) panel.innerHTML = '<div style="font-size:12px;color:var(--muted);font-style:italic;line-height:1.4">Pređi kursorom preko godine da vidiš projekte</div>';
+}
+
+function renderPermitHeroChart() {
+  const d = collectGdLuByYear(PROJECTS);
+  renderPhaseYearChart('perm-hero-chart-lu', 'LU izdate', '#3b9eff', d.luCount, d.luMW, d.luProjects, 'perm-hero-lu-projects');
+  renderPhaseYearChart('perm-hero-chart-gd', 'GD izdate', '#f97316', d.gdCount, d.gdMW, d.gdProjects, 'perm-hero-gd-projects');
+}
+
+// Per phase (Elektrana aspect, all projects), of projects that submitted a request for that permit:
+//  - rej: share rejected at least once
+//  - amend: share that initiated at least one amendment ("Izmena ..." process)
+// Returns { 'Lokacijski uslovi':{att,rej,amend}, 'Građevinska dozvola':{att,rej,amend} }.
+function collectRejectionRates(projects) {
+  const stat = { 'Lokacijski uslovi': { att: 0, rej: 0, amend: 0 }, 'Građevinska dozvola': { att: 0, rej: 0, amend: 0 } };
+  projects.forEach(function(p) {
+    const ph = p.permit_history;
+    if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return;
+    const attempted = {}, rejected = {}, amended = {};
+    Object.keys(ph).forEach(function(aspect) {
+      if (aspect === '_completed') return;
+      if (!DEFAULT_ASPECTS.includes(aspect) && aspect.split(' / ').indexOf('Elektrana') === -1) return;
+      const entries = ph[aspect];
+      if (!Array.isArray(entries)) return;
+      entries.forEach(function(e) {
+        if (!e || !e.name) return;
+        const cat = classifyPermitProcessName(e.name);
+        if (cat !== 'Lokacijski uslovi' && cat !== 'Građevinska dozvola') return;
+        attempted[cat] = true;
+        const rejDates = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
+        if (rejDates && rejDates.length) rejected[cat] = true;
+        if (normSrLatin(e.name).indexOf('izmen') > -1) amended[cat] = true;
+      });
+    });
+    ['Lokacijski uslovi', 'Građevinska dozvola'].forEach(function(cat) {
+      if (attempted[cat]) stat[cat].att++;
+      if (rejected[cat]) stat[cat].rej++;
+      if (amended[cat]) stat[cat].amend++;
+    });
+  });
+  return stat;
+}
+
+// Small VE/SE technology badge used in project lists.
+function techBadgeHtml(tech) {
+  tech = (tech||'').trim();
+  if (tech === 'Wind') return '<span style="font-size:9px;font-weight:800;color:#3b9eff;background:#3b9eff22;border-radius:4px;padding:1px 4px;margin-right:5px">VE</span>';
+  if (tech === 'Solar') return '<span style="font-size:9px;font-weight:800;color:#f5c842;background:#f5c84222;border-radius:4px;padding:1px 4px;margin-right:5px">SE</span>';
+  return '';
+}
+
+// Collapsible summaries of projects currently waiting for LU and GD. The card shows just the
+// count; clicking it expands the list (each row: project + how long it's been waiting).
+function renderPermitPendingHero() {
+  const pend = collectPermitPhaseData(PROJECTS, 'Elektrana').pending;
+  const rowHtml = function(row) {
+    const urgent = row.daysWaiting > 180;
+    const mw = Math.round(Number(row.project.capacity_mw)||0);
+    return '<div style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 14px;cursor:pointer" onclick="openProjSummary('+row.project.id+')">'
+      + '<div style="flex:1;min-width:0">'
+      +   '<div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+techBadgeHtml(row.project.technology)+esc(row.project.name)+'</div>'
+      +   '<div style="font-size:11px;color:var(--muted)">'+mw+' MW</div>'
+      + '</div>'
+      + '<div style="text-align:right;flex-shrink:0">'
+      +   '<div style="font-size:13px;font-weight:700;color:'+(urgent?'#ef4444':'var(--text)')+'">'+formatDurationDays(row.daysWaiting)+'</div>'
+      + '</div></div>';
+  };
+  const build = function(containerId, list) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const sorted = list.slice().sort(function(a,b){ return b.daysWaiting - a.daysWaiting; });
+    const listId = containerId + '-list';
+    const rows = sorted.length
+      ? sorted.map(rowHtml).join('')
+      : '<div style="font-size:12px;color:var(--muted);font-style:italic;padding:8px 0">Nema projekata u čekanju.</div>';
+    el.innerHTML =
+        '<div onclick="togglePendingList(\''+listId+'\',this)" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;user-select:none">'
+      +   '<div style="display:flex;align-items:baseline;gap:8px">'
+      +     '<span style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:34px;color:var(--text);line-height:1">'+sorted.length+'</span>'
+      +     '<span style="font-size:13px;color:var(--muted)">projekata čeka</span>'
+      +   '</div>'
+      +   '<span class="pending-chevron" style="font-size:13px;color:var(--muted);transition:transform .2s">▾</span>'
+      + '</div>'
+      + '<div id="'+listId+'" style="display:none;flex-direction:column;gap:6px;margin-top:12px">'+rows+'</div>';
+  };
+  build('perm-hero-pending-lu', pend.filter(function(r){ return r.category === 'Lokacijski uslovi'; }));
+  build('perm-hero-pending-gd', pend.filter(function(r){ return r.category === 'Građevinska dozvola'; }));
+}
+
+function togglePendingList(listId, headerEl) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  const open = list.style.display === 'none';
+  list.style.display = open ? 'flex' : 'none';
+  const chev = headerEl.querySelector('.pending-chevron');
+  if (chev) chev.style.transform = open ? 'rotate(180deg)' : 'none';
+}
+
+function renderPermitRejectionRates() {
+  const el = document.getElementById('perm-hero-rejection');
+  if (!el) return;
+  const stat = collectRejectionRates(PROJECTS);
+  const ITEMS = [
+    { label: 'Lokacijski uslovi', color: '#3b9eff', s: stat['Lokacijski uslovi'] },
+    { label: 'Građevinska dozvola', color: '#f97316', s: stat['Građevinska dozvola'] }
+  ];
+  const metric = function(caption, num, den, valColor, subText) {
+    const pct = den ? Math.round(num / den * 100) : null;
+    const color = pct == null ? 'var(--muted)' : valColor(pct);
+    const valText = pct == null ? '—' : pct + '%';
+    return '<div style="flex:1;min-width:120px">'
+      + '<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">'+caption+'</div>'
+      + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:34px;color:'+color+';line-height:1;margin-bottom:5px">'+valText+'</div>'
+      + '<div class="stat-sub">'+(den ? num+' od '+den+' '+subText : 'nema podataka')+'</div></div>';
+  };
+  el.innerHTML = ITEMS.map(function(it) {
+    return '<div class="stat-card" style="padding:22px 26px;flex:1">'
+      + '<div class="stat-label" style="margin-bottom:14px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+it.color+';margin-right:6px"></span>'+it.label+'</div>'
+      + '<div style="display:flex;gap:24px;flex-wrap:wrap">'
+      +   metric('Odbijanje', it.s.rej, it.s.att, function(pct){ return pct >= 30 ? '#ef4444' : (pct > 0 ? '#f59e0b' : '#22c55e'); }, 'bar jednom odbijeno')
+      +   metric('Šansa za izmenu', it.s.amend, it.s.att, function(pct){ return pct >= 30 ? '#f59e0b' : (pct > 0 ? '#eab308' : '#22c55e'); }, 'pokrenulo izmenu')
+      + '</div></div>';
+  }).join('');
+}
+
+// Connector column between two hero cards, showing the average gap between phases.
+function heroConnectorHtml(gaps, label, colFrom, colTo, tooltip) {
+  const days = gaps.map(function(g){ return g.days; });
+  const valHtml = days.length
+    ? '<div style="font-family:\'Syne\',sans-serif;font-size:20px;font-weight:800;color:var(--text);white-space:nowrap">'+formatDurationDays(Math.round(days.reduce(function(s,v){ return s+v; },0)/days.length))+'</div>'
+      + '<div style="font-size:12px;color:var(--muted);white-space:nowrap">n='+days.length+'</div>'
+    : '<div style="font-size:13px;color:var(--muted);white-space:nowrap">nema podataka</div>';
+  return '<div style="flex:0 0 150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px" title="'+tooltip+'">'
+    + '<div style="font-size:12px;font-weight:700;color:var(--text);letter-spacing:.5px;white-space:nowrap">'+label+'</div>'
+    + valHtml
+    + '<div style="position:relative;width:100%;height:4px;border-radius:2px;background:linear-gradient(90deg,'+colFrom+','+colTo+')">'
+    +   '<div style="position:absolute;right:-2px;top:-5px;width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:10px solid '+colTo+'"></div>'
+    + '</div></div>';
+}
+
+// Top-of-page hero: global average time (submit → approve) to obtain each key permit.
+// Always Elektrana aspect, across ALL projects — independent of the page filters.
+function renderPermitHero() {
+  const el = document.getElementById('perm-hero-cards');
+  if (!el) return;
+  const { durations } = collectPermitPhaseData(PROJECTS, 'Elektrana');
+  const HERO_CATS = [
+    { label: 'PDR (Plan detaljne regulacije)', color: '#a855f7', entries: collectPdrDurations(PROJECTS) },
+    { label: 'Lokacijski uslovi',              color: '#3b9eff', entries: durations['Lokacijski uslovi'] || [] },
+    { label: 'Građevinska dozvola',            color: '#f97316', entries: durations['Građevinska dozvola'] || [] }
+  ];
+  const cards = HERO_CATS.map(function(h) {
+    const entries = h.entries || [];
+    const vals = entries.map(function(d){ return d.days; }).sort(function(a,b){ return a-b; });
+    if (!vals.length) {
+      return '<div class="stat-card" style="padding:28px 30px;flex:1">'
+        + '<div class="stat-label">'+h.label+'</div>'
+        + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:28px;color:var(--muted);line-height:1;margin:6px 0 4px">Nema podataka</div></div>';
+    }
+    const avg = Math.round(vals.reduce(function(s,v){ return s+v; },0) / vals.length);
+    const median = vals[Math.floor(vals.length/2)];
+
+    // Change vs a year ago: compare the overall (cumulative) average now against
+    // what the cumulative average was through the end of last year — i.e. how much
+    // this year's newly-issued permits moved the all-time average.
+    const curYear = new Date().getFullYear();
+    const prevVals = entries.filter(function(d){ return d.year != null && d.year <= curYear - 1; }).map(function(d){ return d.days; });
+    let deltaHtml = '';
+    if (!prevVals.length) {
+      deltaHtml = '<div style="font-size:12px;color:var(--muted);margin-top:8px">nema ranijih podataka za poređenje</div>';
+    } else {
+      const avgPrev = prevVals.reduce(function(s,v){ return s+v; },0) / prevVals.length;
+      const diff = Math.round(avg - avgPrev);
+      const faster = diff < 0;
+      const col = diff === 0 ? 'var(--muted)' : (faster ? '#22c55e' : '#ef4444');
+      const arrow = diff === 0 ? '→' : (faster ? '↓' : '↑');
+      deltaHtml = '<div style="font-size:12px;font-weight:700;color:'+col+';margin-top:8px">'
+        + arrow+' '+Math.abs(diff)+' dana '+(faster ? 'brže' : (diff === 0 ? 'bez promene' : 'sporije'))
+        + '<span style="color:var(--muted);font-weight:400"> u odnosu na prošlu godinu</span></div>';
+    }
+
+    return '<div class="stat-card" style="padding:28px 30px;flex:1">'
+      + '<div class="stat-label">'+h.label+'</div>'
+      + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:46px;color:'+h.color+';line-height:1;margin:6px 0 6px">'+formatDurationDays(avg)+'</div>'
+      + '<div class="stat-sub">prosek · medijana '+formatDurationDays(median)+' · '+vals.length+' projekata</div>'
+      + deltaHtml + '</div>';
+  });
+  const pdrLu = heroConnectorHtml(collectPdrToLuGap(PROJECTS), 'PDR → LU', '#a855f7', '#3b9eff',
+    'Prosečno vreme od usvajanja PDR-a do podnošenja prvog zahteva za lokacijske uslove');
+  const luGd = heroConnectorHtml(collectLuToGdGap(PROJECTS), 'LU → GD', '#3b9eff', '#f97316',
+    'Prosečno vreme od izdavanja lokacijskih uslova do podnošenja zahteva za građevinsku dozvolu');
+  el.innerHTML = cards[0] + pdrLu + cards[1] + luGd + cards[2];
 }
 
 // Formats a list of project names as multi-line tooltip content, capped so the tooltip doesn't grow unbounded
