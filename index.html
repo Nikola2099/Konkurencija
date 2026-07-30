@@ -2550,9 +2550,14 @@ function renderPermitHeroChart() {
 //  - rej: share rejected at least once
 //  - amend: share that initiated at least one amendment ("Izmena ..." process)
 // Returns { 'Lokacijski uslovi':{att,rej,amend}, 'Građevinska dozvola':{att,rej,amend} }.
+// Projects excluded from the rejection/amendment rates only (e.g. old/operational cases
+// whose historic permitting would skew the current-market picture). Exact name match.
+const REJECTION_RATE_EXCLUDE = ['Alibunar', 'Čibuk 1', 'Kovačica'];
+
 function collectRejectionRates(projects) {
   const stat = { 'Lokacijski uslovi': { att: 0, rej: 0, amend: 0 }, 'Građevinska dozvola': { att: 0, rej: 0, amend: 0 } };
   projects.forEach(function(p) {
+    if (REJECTION_RATE_EXCLUDE.indexOf((p.name || '').trim()) > -1) return;
     const ph = p.permit_history;
     if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return;
     const resolved = {}, rejected = {}, amended = {};
