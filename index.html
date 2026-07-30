@@ -2744,12 +2744,34 @@ function permDurationSet(kind) {
   return null;
 }
 
+// Total number of times a project's LU/GD request was rejected — count of rejection dates across
+// all entries of that category (Elektrana + project-wide aspects).
+function permRejectionCount(project, cat) {
+  const ph = project && project.permit_history;
+  if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return 0;
+  let n = 0;
+  Object.keys(ph).forEach(function(aspect) {
+    if (aspect === '_completed') return;
+    if (!DEFAULT_ASPECTS.includes(aspect) && aspect.split(' / ').indexOf('Elektrana') === -1) return;
+    const entries = ph[aspect];
+    if (!Array.isArray(entries)) return;
+    entries.forEach(function(e) {
+      if (!e || !e.name || classifyPermitProcessName(e.name) !== cat) return;
+      const rd = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
+      n += rd ? rd.length : 0;
+    });
+  });
+  return n;
+}
+
 // Opens the modal listing every project behind a hero average, sorted longest-first,
-// each row showing the project (with tech badge + MW) and how long that phase took.
+// each row showing the project (with tech badge + MW), how long that phase took, and — for the
+// LU and GD cards — how many times that permit was rejected.
 function showPermDurations(kind) {
   const set = permDurationSet(kind);
   if (!set) return;
   const entries = (set.entries || []).slice().sort(function(a,b){ return b.days - a.days; });
+  const rejCat = (kind === 'LU') ? 'Lokacijski uslovi' : (kind === 'GD') ? 'Građevinska dozvola' : null;
   const byName = {};
   PROJECTS.forEach(function(p){ byName[(p.name || '').trim()] = p; });
   document.getElementById('pdm-title').innerHTML = '<span style="color:'+set.color+'">'+esc(set.label)+'</span>';
@@ -2767,13 +2789,19 @@ function showPermDurations(kind) {
       const mw = p ? Math.round(Number(p.capacity_mw) || 0) : null;
       const onclick = p ? ' onclick="closePermDurModal();openProjSummary(' + p.id + ')"' : '';
       const cursor = p ? 'cursor:pointer;' : '';
+      let rejHtml = '';
+      if (rejCat) {
+        const rc = p ? permRejectionCount(p, rejCat) : 0;
+        rejHtml = '<div style="flex:0 0 78px;text-align:right;font-size:11px;font-weight:700;white-space:nowrap;color:'+(rc>0?'#ef4444':'var(--muted)')+'">'+rc+'× odbijen</div>';
+      }
       return '<div'+onclick+' style="'+cursor+'display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px solid var(--border)">'
         + '<span style="font-size:12px;color:var(--muted);width:24px;flex-shrink:0;text-align:right">'+(i+1)+'.</span>'
         + '<div style="flex:1;min-width:0">'
         +   '<div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+techBadgeHtml(p ? p.technology : '')+esc(e.project)+'</div>'
         +   (mw != null ? '<div style="font-size:11px;color:var(--muted)">'+mw+' MW</div>' : '')
         + '</div>'
-        + '<div style="font-size:14px;font-weight:700;color:'+set.color+';flex-shrink:0;white-space:nowrap">'+formatDurationDays(e.days)+'</div>'
+        + rejHtml
+        + '<div style="font-size:14px;font-weight:700;color:'+set.color+';flex-shrink:0;white-space:nowrap;min-width:64px;text-align:right">'+formatDurationDays(e.days)+'</div>'
         + '</div>';
     }).join('');
   }
