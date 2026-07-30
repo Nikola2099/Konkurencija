@@ -2173,31 +2173,25 @@ function collectPermitPhaseData(projects, aspectFilter) {
           const dSub = coreSubs.length ? coreSubs[0] : (first.date_submitted ? parseAnyDate(first.date_submitted) : null);
           if (dSub && dApp >= dSub) durations[cat].push({ days: daysBetweenDates(dSub, dApp), year: yApp, project: p.name, law: p.law||'', projectId: p.id });
         }
-        // Pending = latest (by date_submitted) entry in this category that itself has no approval yet
-        // and wasn't itself rejected (a rejected submission is resolved, not "waiting"). Checked per
-        // entry (not category-wide) so a still-open amendment/usaglašeni zahtev shows up even if an
-        // earlier entry in the same category (e.g. the original permit) was already approved.
+        // Pending = a still-open submission in this category (no approval on that entry, not rejected).
+        // Only projects still OBTAINING the permit count: if the category already has an approval, the
+        // permit is issued and any open submission is just an amendment/renewal — those are excluded.
         const withSub = list.filter(e => {
           if (!e.date_submitted || !parseAnyDate(e.date_submitted)) return false;
           if (e.date_approved) return false;
           const rejDates = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
           return rejDates.length === 0;
         }).sort((a,b) => parseAnyDate(a.date_submitted) - parseAnyDate(b.date_submitted));
-        if (withSub.length) {
+        const hasApproval = list.some(e => e.date_approved && parseAnyDate(e.date_approved));
+        if (withSub.length && !hasApproval) {
           const latest = withSub[withSub.length-1];
-          // Waiting time for a permit not yet obtained is measured from the FIRST original submission
-          // (same as the completed-duration logic): a usaglašeni zahtev / re-submission continues the
-          // original process after a rejection, so the clock starts at the earliest submission.
-          // Amendments ("Izmena ...") are excluded. If the permit is already issued (open amendment
-          // only), keep the amendment's own submission date.
-          const hasApproval = list.some(e => e.date_approved && parseAnyDate(e.date_approved));
-          let startEntry = latest;
-          if (!hasApproval) {
-            const coreSubs = list
-              .filter(e => e.date_submitted && parseAnyDate(e.date_submitted) && normSrLatin(e.name).indexOf('izmen') === -1)
-              .sort((a,b) => parseAnyDate(a.date_submitted) - parseAnyDate(b.date_submitted));
-            if (coreSubs.length) startEntry = coreSubs[0];
-          }
+          // Waiting time is measured from the FIRST original submission (same as the completed-duration
+          // logic): a usaglašeni zahtev / re-submission continues the original process after a rejection.
+          // Amendments ("Izmena ...") are excluded from the start-date search.
+          const coreSubs = list
+            .filter(e => e.date_submitted && parseAnyDate(e.date_submitted) && normSrLatin(e.name).indexOf('izmen') === -1)
+            .sort((a,b) => parseAnyDate(a.date_submitted) - parseAnyDate(b.date_submitted));
+          const startEntry = coreSubs.length ? coreSubs[0] : latest;
           const dSub = parseAnyDate(startEntry.date_submitted);
           const key = p.id+'|'+aspect+'|'+cat;
           pendingMap[key] = { project:p, category:cat, aspect, caseNum: latest.case_num||'', dateSubmitted: startEntry.date_submitted, daysWaiting: daysBetweenDates(dSub, now) };
