@@ -310,6 +310,9 @@
     overflow: hidden;
   }
 
+  .perm-clickable { transition: transform .15s, box-shadow .15s, border-color .15s; }
+  .perm-clickable:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.35); border-color: var(--accent); }
+
   .stat-card::before {
     content: '';
     position: absolute;
@@ -1491,6 +1494,20 @@
     </div>
     <!-- Project list -->
     <div id="pm-list" style="overflow-y:auto;padding:8px 24px 20px;flex:1"></div>
+  </div>
+</div>
+
+<!-- PERMIT DURATION LIST MODAL -->
+<div id="perm-dur-modal" onclick="if(event.target===this)closePermDurModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:450;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:20px;width:min(560px,92vw);max-height:82vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.6)">
+    <div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-shrink:0">
+      <div style="min-width:0">
+        <div id="pdm-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text)"></div>
+        <div id="pdm-sub" style="font-size:12px;color:var(--muted);margin-top:3px"></div>
+      </div>
+      <button onclick="closePermDurModal()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;color:var(--muted);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+    </div>
+    <div id="pdm-list" style="overflow-y:auto;padding:8px 24px 20px;flex:1"></div>
   </div>
 </div>
 
@@ -2676,18 +2693,74 @@ function renderPermitRejectionRates() {
 }
 
 // Connector column between two hero cards, showing the average gap between phases.
-function heroConnectorHtml(gaps, label, colFrom, colTo, tooltip) {
+function heroConnectorHtml(gaps, label, colFrom, colTo, tooltip, kind) {
   const days = gaps.map(function(g){ return g.days; });
   const valHtml = days.length
     ? '<div style="font-family:\'Syne\',sans-serif;font-size:20px;font-weight:800;color:var(--text);white-space:nowrap">'+formatDurationDays(Math.round(days.reduce(function(s,v){ return s+v; },0)/days.length))+'</div>'
       + '<div style="font-size:12px;color:var(--muted);white-space:nowrap">n='+days.length+'</div>'
     : '<div style="font-size:13px;color:var(--muted);white-space:nowrap">nema podataka</div>';
-  return '<div style="flex:0 0 150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px" title="'+tooltip+'">'
+  const clickable = (kind && days.length) ? ' class="perm-clickable" onclick="showPermDurations(\''+kind+'\')"' : '';
+  const cursor = (kind && days.length) ? 'cursor:pointer;' : '';
+  return '<div'+clickable+' style="'+cursor+'flex:0 0 150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px" title="'+tooltip+'">'
     + '<div style="font-size:12px;font-weight:700;color:var(--text);letter-spacing:.5px;white-space:nowrap">'+label+'</div>'
     + valHtml
     + '<div style="position:relative;width:100%;height:4px;border-radius:2px;background:linear-gradient(90deg,'+colFrom+','+colTo+')">'
     +   '<div style="position:absolute;right:-2px;top:-5px;width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:10px solid '+colTo+'"></div>'
     + '</div></div>';
+}
+
+// Data set behind each clickable hero average. Returns { label, color, entries:[{days, project}] }.
+// entries are the per-project durations (hero cards) or phase gaps (connectors), Elektrana aspect.
+function permDurationSet(kind) {
+  const durations = collectPermitPhaseData(PROJECTS, 'Elektrana').durations;
+  switch (kind) {
+    case 'PDR':    return { label: 'PDR (Plan detaljne regulacije)', color: '#a855f7', entries: collectPdrDurations(PROJECTS) };
+    case 'PDR_LU': return { label: 'PDR → LU (usvajanje PDR-a → podnošenje LU)', color: '#3b9eff', entries: collectPdrToLuGap(PROJECTS) };
+    case 'LU':     return { label: 'Lokacijski uslovi (podnošenje → izdavanje)', color: '#3b9eff', entries: durations['Lokacijski uslovi'] || [] };
+    case 'LU_GD':  return { label: 'LU → GD (izdavanje LU → podnošenje GD)', color: '#f97316', entries: collectLuToGdGap(PROJECTS) };
+    case 'GD':     return { label: 'Građevinska dozvola (podnošenje → izdavanje)', color: '#f97316', entries: durations['Građevinska dozvola'] || [] };
+  }
+  return null;
+}
+
+// Opens the modal listing every project behind a hero average, sorted longest-first,
+// each row showing the project (with tech badge + MW) and how long that phase took.
+function showPermDurations(kind) {
+  const set = permDurationSet(kind);
+  if (!set) return;
+  const entries = (set.entries || []).slice().sort(function(a,b){ return b.days - a.days; });
+  const byName = {};
+  PROJECTS.forEach(function(p){ byName[(p.name || '').trim()] = p; });
+  document.getElementById('pdm-title').innerHTML = '<span style="color:'+set.color+'">'+esc(set.label)+'</span>';
+  const listEl = document.getElementById('pdm-list');
+  if (!entries.length) {
+    document.getElementById('pdm-sub').textContent = 'Nema projekata sa dovoljno podataka';
+    listEl.innerHTML = '<div style="font-size:13px;color:var(--muted);font-style:italic;padding:12px 0">Nema podataka.</div>';
+  } else {
+    const vals = entries.map(function(e){ return e.days; }).slice().sort(function(a,b){ return a-b; });
+    const avg = Math.round(vals.reduce(function(s,v){ return s+v; },0) / vals.length);
+    const median = vals.length % 2 ? vals[(vals.length-1)/2] : Math.round((vals[vals.length/2-1] + vals[vals.length/2]) / 2);
+    document.getElementById('pdm-sub').textContent = entries.length + ' projekata · prosek ' + formatDurationDays(avg) + ' · medijana ' + formatDurationDays(median);
+    listEl.innerHTML = entries.map(function(e, i) {
+      const p = byName[(e.project || '').trim()];
+      const mw = p ? Math.round(Number(p.capacity_mw) || 0) : null;
+      const onclick = p ? ' onclick="closePermDurModal();openProjSummary(' + p.id + ')"' : '';
+      const cursor = p ? 'cursor:pointer;' : '';
+      return '<div'+onclick+' style="'+cursor+'display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px solid var(--border)">'
+        + '<span style="font-size:12px;color:var(--muted);width:24px;flex-shrink:0;text-align:right">'+(i+1)+'.</span>'
+        + '<div style="flex:1;min-width:0">'
+        +   '<div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+techBadgeHtml(p ? p.technology : '')+esc(e.project)+'</div>'
+        +   (mw != null ? '<div style="font-size:11px;color:var(--muted)">'+mw+' MW</div>' : '')
+        + '</div>'
+        + '<div style="font-size:14px;font-weight:700;color:'+set.color+';flex-shrink:0;white-space:nowrap">'+formatDurationDays(e.days)+'</div>'
+        + '</div>';
+    }).join('');
+  }
+  document.getElementById('perm-dur-modal').style.display = 'flex';
+}
+
+function closePermDurModal() {
+  document.getElementById('perm-dur-modal').style.display = 'none';
 }
 
 // Top-of-page hero: global average time (submit → approve) to obtain each key permit.
@@ -2697,9 +2770,9 @@ function renderPermitHero() {
   if (!el) return;
   const { durations } = collectPermitPhaseData(PROJECTS, 'Elektrana');
   const HERO_CATS = [
-    { label: 'PDR (Plan detaljne regulacije)', color: '#a855f7', entries: collectPdrDurations(PROJECTS) },
-    { label: 'Lokacijski uslovi',              color: '#3b9eff', entries: durations['Lokacijski uslovi'] || [] },
-    { label: 'Građevinska dozvola',            color: '#f97316', entries: durations['Građevinska dozvola'] || [] }
+    { label: 'PDR (Plan detaljne regulacije)', color: '#a855f7', kind: 'PDR', entries: collectPdrDurations(PROJECTS) },
+    { label: 'Lokacijski uslovi',              color: '#3b9eff', kind: 'LU',  entries: durations['Lokacijski uslovi'] || [] },
+    { label: 'Građevinska dozvola',            color: '#f97316', kind: 'GD',  entries: durations['Građevinska dozvola'] || [] }
   ];
   const cards = HERO_CATS.map(function(h) {
     const entries = h.entries || [];
@@ -2731,16 +2804,17 @@ function renderPermitHero() {
         + '<span style="color:var(--muted);font-weight:400"> u odnosu na prošlu godinu</span></div>';
     }
 
-    return '<div class="stat-card" style="padding:28px 30px;flex:1">'
+    return '<div class="stat-card perm-clickable" onclick="showPermDurations(\''+h.kind+'\')" style="padding:28px 30px;flex:1;cursor:pointer">'
       + '<div class="stat-label">'+h.label+'</div>'
       + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:46px;color:'+h.color+';line-height:1;margin:6px 0 6px">'+formatDurationDays(avg)+'</div>'
       + '<div class="stat-sub">prosek · medijana '+formatDurationDays(median)+' · '+vals.length+' projekata</div>'
-      + deltaHtml + '</div>';
+      + deltaHtml
+      + '<div style="font-size:11px;color:var(--muted);margin-top:10px">klikni za listu projekata →</div></div>';
   });
   const pdrLu = heroConnectorHtml(collectPdrToLuGap(PROJECTS), 'PDR → LU', '#a855f7', '#3b9eff',
-    'Prosečno vreme od usvajanja PDR-a do podnošenja prvog zahteva za lokacijske uslove');
+    'Prosečno vreme od usvajanja PDR-a do podnošenja prvog zahteva za lokacijske uslove', 'PDR_LU');
   const luGd = heroConnectorHtml(collectLuToGdGap(PROJECTS), 'LU → GD', '#3b9eff', '#f97316',
-    'Prosečno vreme od izdavanja lokacijskih uslova do podnošenja zahteva za građevinsku dozvolu');
+    'Prosečno vreme od izdavanja lokacijskih uslova do podnošenja zahteva za građevinsku dozvolu', 'LU_GD');
   el.innerHTML = cards[0] + pdrLu + cards[1] + luGd + cards[2];
 }
 
