@@ -2744,12 +2744,15 @@ function permDurationSet(kind) {
   return null;
 }
 
-// Total number of times a project's LU/GD request was rejected — count of rejection dates across
-// all entries of that category (Elektrana + project-wide aspects).
+// Number of times a project was rejected while obtaining its FIRST LU/GD — i.e. rejection dates at
+// or before the first (non-rejected) approval of that permit. Amendments ("Izmena ...") are excluded
+// (they modify an already-issued permit), and rejections after issuance don't count. If the permit
+// isn't issued yet, all rejections so far are counted.
 function permRejectionCount(project, cat) {
   const ph = project && project.permit_history;
   if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return 0;
-  let n = 0;
+  // Core (non-amendment) entries of this category across relevant aspects.
+  const core = [];
   Object.keys(ph).forEach(function(aspect) {
     if (aspect === '_completed') return;
     if (!DEFAULT_ASPECTS.includes(aspect) && aspect.split(' / ').indexOf('Elektrana') === -1) return;
@@ -2757,8 +2760,24 @@ function permRejectionCount(project, cat) {
     if (!Array.isArray(entries)) return;
     entries.forEach(function(e) {
       if (!e || !e.name || classifyPermitProcessName(e.name) !== cat) return;
-      const rd = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
-      n += rd ? rd.length : 0;
+      if (normSrLatin(e.name).indexOf('izmen') > -1) return;   // skip amendments
+      core.push(e);
+    });
+  });
+  if (!core.length) return 0;
+  // End of the "obtaining the first permit" window = first approval date (if any).
+  const appDates = core
+    .map(function(e){ return e.date_approved ? parseAnyDate(e.date_approved) : null; })
+    .filter(Boolean)
+    .sort(function(a,b){ return a - b; });
+  const firstApp = appDates.length ? appDates[0] : null;
+  let n = 0;
+  core.forEach(function(e) {
+    const rd = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
+    (rd || []).forEach(function(r) {
+      if (!firstApp) { n++; return; }              // not issued yet → count all rejections so far
+      const d = parseAnyDate(r);
+      if (d && d <= firstApp) n++;                 // only rejections before the first approval
     });
   });
   return n;
