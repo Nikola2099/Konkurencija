@@ -4413,7 +4413,7 @@ async function sendAI() {
   const q = input.value.trim();
   if (!q) return;
 
-  msgs.innerHTML += '<div class="ai-msg-user">'+q+'</div>';
+  msgs.innerHTML += '<div class="ai-msg-user">'+esc(q)+'</div>';
   input.value = ''; input.style.height = 'auto';
 
   const thinkId = 'think_'+Date.now();
@@ -4428,7 +4428,7 @@ async function sendAI() {
     const res = await fetch(SB_URL + '/functions/v1/ai-proxy', {
       method:'POST',
       headers:{ 'Content-Type':'application/json', 'apikey': SB_KEY },
-      body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1500, system:getAISystem(), messages:aiHistory })
+      body:JSON.stringify({ model:'claude-sonnet-5', max_tokens:1500, system:getAISystem(), messages:aiHistory })
     });
     if (!res.ok) { const txt = await res.text(); throw new Error('HTTP '+res.status+': '+txt.slice(0,200)); }
     const data = await res.json();
@@ -4479,7 +4479,7 @@ async function sendFloatAI() {
   const q = input.value.trim();
   if (!q) return;
 
-  msgs.innerHTML += '<div style="align-self:flex-end;background:var(--accent);color:#0b0f1a;padding:7px 12px;border-radius:12px 12px 2px 12px;font-size:13px;max-width:85%">'+q+'</div>';
+  msgs.innerHTML += '<div style="align-self:flex-end;background:var(--accent);color:#0b0f1a;padding:7px 12px;border-radius:12px 12px 2px 12px;font-size:13px;max-width:85%">'+esc(q)+'</div>';
   input.value = ''; input.style.height = 'auto';
 
   const thinkId = 'fthink_'+Date.now();
@@ -4494,7 +4494,7 @@ async function sendFloatAI() {
     const res = await fetch(SB_URL + '/functions/v1/ai-proxy', {
       method:'POST',
       headers:{ 'Content-Type':'application/json', 'apikey': SB_KEY },
-      body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:800, system:getAISystem(), messages:floatAiHistory })
+      body:JSON.stringify({ model:'claude-sonnet-5', max_tokens:800, system:getAISystem(), messages:floatAiHistory })
     });
     if (!res.ok) { const txt = await res.text(); throw new Error('HTTP '+res.status+': '+txt.slice(0,200)); }
     const data = await res.json();
