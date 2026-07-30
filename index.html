@@ -5703,9 +5703,30 @@ function renderPermitHistory(p) {
               +'</div></div>';
           }).join('');
     } else {
-      rows = entries.length === 0
+      // Order the permit processes by submission date; when a process has no submission date, fall
+      // back to its (earliest) rejection date, then its approval date. Undated processes go last.
+      // Only the DISPLAY order changes — each entry keeps its original index for edit/delete handlers.
+      const permitEntryKeyDate = function(e) {
+        let d = e.date_submitted ? parseAnyDate(e.date_submitted) : null;
+        if (!d) {
+          const rd = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
+          const rp = rd.map(parseAnyDate).filter(Boolean).sort(function(a,b){ return a - b; });
+          if (rp.length) d = rp[0];
+        }
+        if (!d && e.date_approved) d = parseAnyDate(e.date_approved);
+        return d;
+      };
+      const indexed = entries.map(function(e, i){ return { e: e, i: i }; }).sort(function(a, b) {
+        const da = permitEntryKeyDate(a.e), db = permitEntryKeyDate(b.e);
+        if (!da && !db) return 0;
+        if (!da) return 1;
+        if (!db) return -1;
+        return da - db;
+      });
+      rows = indexed.length === 0
         ? '<div style="font-size:12px;color:var(--muted);padding:6px 0 4px;font-style:italic">No processes yet.</div>'
-        : entries.map(function(e, i) {
+        : indexed.map(function(rec) {
+            const e = rec.e, i = rec.i;
             const hasApproved = !!e.date_approved;
             const rejDates = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
             const hasRejected = rejDates.length > 0;
