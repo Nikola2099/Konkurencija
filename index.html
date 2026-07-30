@@ -2542,7 +2542,11 @@ function renderPermitHeroChart() {
   renderPhaseYearChart('perm-hero-chart-gd', 'GD izdate', '#f97316', d.gdCount, d.gdMW, d.gdProjects, 'perm-hero-gd-projects');
 }
 
-// Per phase (Elektrana aspect, all projects), of projects that submitted a request for that permit:
+// Per phase (Elektrana aspect, all projects). The denominator (att) counts only projects
+// with a RESOLVED request — one that has a decision date (issued date_approved, or a rejection
+// date). Requests that are merely submitted and still awaiting a decision are excluded, so the
+// rate reflects only cases where an outcome actually exists.
+//  - att: share with at least one resolved (approved or rejected) request
 //  - rej: share rejected at least once
 //  - amend: share that initiated at least one amendment ("Izmena ..." process)
 // Returns { 'Lokacijski uslovi':{att,rej,amend}, 'Građevinska dozvola':{att,rej,amend} }.
@@ -2551,7 +2555,7 @@ function collectRejectionRates(projects) {
   projects.forEach(function(p) {
     const ph = p.permit_history;
     if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return;
-    const attempted = {}, rejected = {}, amended = {};
+    const resolved = {}, rejected = {}, amended = {};
     Object.keys(ph).forEach(function(aspect) {
       if (aspect === '_completed') return;
       if (!DEFAULT_ASPECTS.includes(aspect) && aspect.split(' / ').indexOf('Elektrana') === -1) return;
@@ -2561,14 +2565,17 @@ function collectRejectionRates(projects) {
         if (!e || !e.name) return;
         const cat = classifyPermitProcessName(e.name);
         if (cat !== 'Lokacijski uslovi' && cat !== 'Građevinska dozvola') return;
-        attempted[cat] = true;
         const rejDates = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
-        if (rejDates && rejDates.length) rejected[cat] = true;
+        const isRejected = rejDates && rejDates.length;
+        // Resolved = has a decision date (issued or rejected); pending-only submissions don't count.
+        if (e.date_approved || isRejected) resolved[cat] = true;
+        if (isRejected) rejected[cat] = true;
         if (normSrLatin(e.name).indexOf('izmen') > -1) amended[cat] = true;
       });
     });
     ['Lokacijski uslovi', 'Građevinska dozvola'].forEach(function(cat) {
-      if (attempted[cat]) stat[cat].att++;
+      if (!resolved[cat]) return;               // only resolved cases count toward the rates
+      stat[cat].att++;
       if (rejected[cat]) stat[cat].rej++;
       if (amended[cat]) stat[cat].amend++;
     });
