@@ -2583,7 +2583,8 @@ function renderPermitHeroChart() {
 // date). Requests that are merely submitted and still awaiting a decision are excluded, so the
 // rate reflects only cases where an outcome actually exists.
 //  - att: share with at least one resolved (approved or rejected) request
-//  - rej: share rejected at least once
+//  - rej: share rejected while obtaining the FIRST permit (pre-issuance rejections only, via
+//    permRejectionCount) — later rejections on amendments do NOT count
 //  - amend: share that initiated at least one amendment ("Izmena ..." process)
 // Returns { 'Lokacijski uslovi':{att,rej,amend}, 'Građevinska dozvola':{att,rej,amend} }.
 // Projects excluded from the rejection/amendment rates only (e.g. old/operational cases
@@ -2596,7 +2597,7 @@ function collectRejectionRates(projects) {
     if (REJECTION_RATE_EXCLUDE.indexOf((p.name || '').trim()) > -1) return;
     const ph = p.permit_history;
     if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return;
-    const resolved = {}, rejected = {}, amended = {};
+    const resolved = {}, amended = {};
     Object.keys(ph).forEach(function(aspect) {
       if (aspect === '_completed') return;
       if (!DEFAULT_ASPECTS.includes(aspect) && aspect.split(' / ').indexOf('Elektrana') === -1) return;
@@ -2610,14 +2611,15 @@ function collectRejectionRates(projects) {
         const isRejected = rejDates && rejDates.length;
         // Resolved = has a decision date (issued or rejected); pending-only submissions don't count.
         if (e.date_approved || isRejected) resolved[cat] = true;
-        if (isRejected) rejected[cat] = true;
         if (normSrLatin(e.name).indexOf('izmen') > -1) amended[cat] = true;
       });
     });
     ['Lokacijski uslovi', 'Građevinska dozvola'].forEach(function(cat) {
       if (!resolved[cat]) return;               // only resolved cases count toward the rates
       stat[cat].att++;
-      if (rejected[cat]) stat[cat].rej++;
+      // Rejected only counts a first-time rejection (while obtaining the first permit), never a
+      // rejection on a later amendment.
+      if (permRejectionCount(p, cat) > 0) stat[cat].rej++;
       if (amended[cat]) stat[cat].amend++;
     });
   });
