@@ -1376,11 +1376,11 @@
 
     <div class="two-col" style="margin-top:24px">
       <div class="chart-card">
-        <div class="chart-title">Čeka na LU — trenutno</div>
+        <div class="chart-title">U procesu je ishodovanja LU</div>
         <div id="perm-hero-pending-lu"></div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">Čeka na GD — trenutno</div>
+        <div class="chart-title">U procesu je ishodovanja GD</div>
         <div id="perm-hero-pending-gd"></div>
       </div>
     </div>
@@ -2620,6 +2620,7 @@ function renderPermitPendingHero() {
     const el = document.getElementById(containerId);
     if (!el) return;
     const sorted = list.slice().sort(function(a,b){ return b.daysWaiting - a.daysWaiting; });
+    const totalMw = Math.round(sorted.reduce(function(s,r){ return s + (Number(r.project.capacity_mw)||0); }, 0));
     const listId = containerId + '-list';
     const rows = sorted.length
       ? sorted.map(rowHtml).join('')
@@ -2628,7 +2629,7 @@ function renderPermitPendingHero() {
         '<div onclick="togglePendingList(\''+listId+'\',this)" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;user-select:none">'
       +   '<div style="display:flex;align-items:baseline;gap:8px">'
       +     '<span style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:34px;color:var(--text);line-height:1">'+sorted.length+'</span>'
-      +     '<span style="font-size:13px;color:var(--muted)">projekata čeka</span>'
+      +     '<span style="font-size:13px;color:var(--muted)">projekata · '+totalMw+' MW</span>'
       +   '</div>'
       +   '<span class="pending-chevron" style="font-size:13px;color:var(--muted);transition:transform .2s">▾</span>'
       + '</div>'
