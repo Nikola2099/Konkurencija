@@ -2591,6 +2591,10 @@ function renderPermitHeroChart() {
 // whose historic permitting would skew the current-market picture). Exact name match.
 const REJECTION_RATE_EXCLUDE = ['Alibunar', 'Čibuk 1', 'Kovačica', 'Plandište'];
 
+// Projects shown as a footnote in the rejection modal — informally rejected but without an official
+// rejection document, so not counted in the rejection numerator. Exact names; fill in as needed.
+const REJECTION_NO_DOC = [];
+
 function collectRejectionRates(projects) {
   const stat = { 'Lokacijski uslovi': { att: 0, rej: 0, amend: 0 }, 'Građevinska dozvola': { att: 0, rej: 0, amend: 0 } };
   projects.forEach(function(p) {
@@ -2718,12 +2722,12 @@ function renderPermitRejectionRates() {
 // numerator (rej = first-time rejection via permRejectionCount; amend = has an "Izmena ..." process).
 function showPermRateProjects(cat, kind) {
   const color = cat === 'Lokacijski uslovi' ? '#3b9eff' : '#f97316';
-  const att = [], num = [];
+  const att = [], num = [], firstTry = [];
   PROJECTS.forEach(function(p) {
     if (REJECTION_RATE_EXCLUDE.indexOf((p.name || '').trim()) > -1) return;
     const ph = p.permit_history;
     if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return;
-    let resolved = false, amended = false;
+    let resolved = false, amended = false, approved = false;
     Object.keys(ph).forEach(function(aspect) {
       if (aspect === '_completed') return;
       if (!DEFAULT_ASPECTS.includes(aspect) && aspect.split(' / ').indexOf('Elektrana') === -1) return;
@@ -2732,6 +2736,7 @@ function showPermRateProjects(cat, kind) {
       entries.forEach(function(e) {
         if (!e || !e.name || classifyPermitProcessName(e.name) !== cat) return;
         const rd = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
+        if (e.date_approved) approved = true;
         if (e.date_approved || (rd && rd.length)) resolved = true;
         if (normSrLatin(e.name).indexOf('izmen') > -1) amended = true;
       });
@@ -2741,25 +2746,45 @@ function showPermRateProjects(cat, kind) {
     const rc = permRejectionCount(p, cat);
     if (kind === 'rej' && rc > 0) num.push({ p: p, count: rc });
     else if (kind === 'amend' && amended) num.push({ p: p, count: 0 });
+    // Obtained on the first try = issued with zero (documented) rejections along the way.
+    if (approved && rc === 0) firstTry.push(p);
   });
   num.sort(function(a,b){ return b.count - a.count || a.p.name.localeCompare(b.p.name); });
+  firstTry.sort(function(a,b){ return a.name.localeCompare(b.name); });
   const pct = att.length ? Math.round(num.length / att.length * 100) : 0;
   const kindLabel = kind === 'rej' ? 'Odbijeni pri prvom ishodovanju' : 'Pokrenuli izmenu';
   document.getElementById('pdm-title').innerHTML = '<span style="color:'+color+'">'+kindLabel+' — '+esc(cat)+'</span>';
   document.getElementById('pdm-sub').textContent = num.length + ' od ' + att.length + ' projekata · ' + pct + '%';
-  document.getElementById('pdm-list').innerHTML = num.length
-    ? num.map(function(r, i) {
-        const mw = Math.round(Number(r.p.capacity_mw) || 0);
-        return '<div onclick="closePermDurModal();openProjSummary(' + r.p.id + ')" style="cursor:pointer;display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px solid var(--border)">'
-          + '<span style="font-size:12px;color:var(--muted);width:24px;flex-shrink:0;text-align:right">'+(i+1)+'.</span>'
-          + '<div style="flex:1;min-width:0">'
-          +   '<div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+techBadgeHtml(r.p.technology)+esc(r.p.name)+'</div>'
-          +   '<div style="font-size:11px;color:var(--muted)">'+mw+' MW</div>'
-          + '</div>'
-          + (kind === 'rej' ? '<div style="font-size:12px;font-weight:700;color:#ef4444;flex-shrink:0;white-space:nowrap">'+r.count+'× odbijen</div>' : '')
-          + '</div>';
-      }).join('')
+
+  const projRow = function(p, i, badge) {
+    const mw = Math.round(Number(p.capacity_mw) || 0);
+    return '<div onclick="closePermDurModal();openProjSummary(' + p.id + ')" style="cursor:pointer;display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px solid var(--border)">'
+      + '<span style="font-size:12px;color:var(--muted);width:24px;flex-shrink:0;text-align:right">'+(i+1)+'.</span>'
+      + '<div style="flex:1;min-width:0">'
+      +   '<div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+techBadgeHtml(p.technology)+esc(p.name)+'</div>'
+      +   '<div style="font-size:11px;color:var(--muted)">'+mw+' MW</div>'
+      + '</div>'
+      + (badge || '')
+      + '</div>';
+  };
+  const sectionHead = function(text) {
+    return '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:16px 0 6px">'+text+'</div>';
+  };
+
+  let html = num.length
+    ? num.map(function(r, i){ return projRow(r.p, i, '<div style="font-size:12px;font-weight:700;color:#ef4444;flex-shrink:0;white-space:nowrap">'+r.count+'× odbijen</div>'); }).join('')
     : '<div style="font-size:13px;color:var(--muted);font-style:italic;padding:12px 0">Nema projekata.</div>';
+  // "Obtained on the first try" — the clean cases, shown for context under the rejection list.
+  if (kind === 'rej' && firstTry.length) {
+    html += sectionHead('Iz prve ishodovali (bez odbijanja) · ' + firstTry.length)
+      + firstTry.map(function(p, i){ return projRow(p, i, '<div style="font-size:12px;font-weight:700;color:#22c55e;flex-shrink:0;white-space:nowrap">iz prve</div>'); }).join('');
+  }
+  // Footnote: projects deliberately not counted as rejected for lack of an official rejection document.
+  if (kind === 'rej' && REJECTION_NO_DOC.length) {
+    html += '<div style="font-size:11px;color:var(--muted);line-height:1.5;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">'
+      + '* Nije uračunato kao odbijanje (nema zvaničan dokument o odbijanju): ' + REJECTION_NO_DOC.map(esc).join(', ') + '</div>';
+  }
+  document.getElementById('pdm-list').innerHTML = html;
   document.getElementById('perm-dur-modal').style.display = 'flex';
 }
 
