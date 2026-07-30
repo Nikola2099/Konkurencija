@@ -49,9 +49,14 @@ Deno.serve(async (req) => {
   }
 
   const model = ALLOWED_MODELS.has(payload?.model) ? payload.model : DEFAULT_MODEL;
-  const max_tokens = Math.min(Number(payload?.max_tokens) || 1500, 4096);
+  // Podigni gornju granicu: Sonnet 5 podrazumevano "misli", pa mora ostati dovoljno
+  // prostora za sam odgovor pored thinking-a (inače potroši sve na razmišljanje).
+  const max_tokens = Math.min(Number(payload?.max_tokens) || 1500, 8192);
   const messages = Array.isArray(payload?.messages) ? payload.messages : [];
   const system = typeof payload?.system === "string" ? payload.system : undefined;
+  // Podrazumevano isključi extended thinking (za faktografska pitanja nad podacima nije potreban
+  // i troši ceo token budžet). Klijent može eksplicitno da prosledi svoj `thinking` objekat.
+  const thinking = payload?.thinking ?? { type: "disabled" };
 
   if (!messages.length) {
     return json({ error: { message: "Nedostaje 'messages'." } }, 400);
@@ -65,7 +70,7 @@ Deno.serve(async (req) => {
         "x-api-key": apiKey,
         "anthropic-version": ANTHROPIC_VERSION,
       },
-      body: JSON.stringify({ model, max_tokens, system, messages }),
+      body: JSON.stringify({ model, max_tokens, system, messages, thinking }),
     });
 
     const data = await res.json();
