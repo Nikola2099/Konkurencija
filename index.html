@@ -2692,11 +2692,13 @@ function renderPermitRejectionRates() {
     { label: 'Lokacijski uslovi', color: '#3b9eff', s: stat['Lokacijski uslovi'] },
     { label: 'Građevinska dozvola', color: '#f97316', s: stat['Građevinska dozvola'] }
   ];
-  const metric = function(caption, num, den, valColor, subText) {
+  const metric = function(caption, num, den, valColor, subText, cat, kind) {
     const pct = den ? Math.round(num / den * 100) : null;
     const color = pct == null ? 'var(--muted)' : valColor(pct);
     const valText = pct == null ? '—' : pct + '%';
-    return '<div style="flex:1;min-width:120px">'
+    const clickable = (den && num) ? ' class="perm-clickable" onclick="showPermRateProjects(\''+cat+'\',\''+kind+'\')"' : '';
+    const cursor = (den && num) ? 'cursor:pointer;border-radius:10px;margin:-6px;padding:6px;' : '';
+    return '<div'+clickable+' style="'+cursor+'flex:1;min-width:120px">'
       + '<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">'+caption+'</div>'
       + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:34px;color:'+color+';line-height:1;margin-bottom:5px">'+valText+'</div>'
       + '<div class="stat-sub">'+(den ? num+' od '+den+' '+subText : 'nema podataka')+'</div></div>';
@@ -2705,10 +2707,60 @@ function renderPermitRejectionRates() {
     return '<div class="stat-card" style="padding:22px 26px;flex:1">'
       + '<div class="stat-label" style="margin-bottom:14px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+it.color+';margin-right:6px"></span>'+it.label+'</div>'
       + '<div style="display:flex;gap:24px;flex-wrap:wrap">'
-      +   metric('Odbijanje', it.s.rej, it.s.att, function(pct){ return pct >= 30 ? '#ef4444' : (pct > 0 ? '#f59e0b' : '#22c55e'); }, 'bar jednom odbijeno')
-      +   metric('Šansa za izmenu', it.s.amend, it.s.att, function(pct){ return pct >= 30 ? '#f59e0b' : (pct > 0 ? '#eab308' : '#22c55e'); }, 'pokrenulo izmenu')
+      +   metric('Odbijanje', it.s.rej, it.s.att, function(pct){ return pct >= 30 ? '#ef4444' : (pct > 0 ? '#f59e0b' : '#22c55e'); }, 'bar jednom odbijeno', it.label, 'rej')
+      +   metric('Šansa za izmenu', it.s.amend, it.s.att, function(pct){ return pct >= 30 ? '#f59e0b' : (pct > 0 ? '#eab308' : '#22c55e'); }, 'pokrenulo izmenu', it.label, 'amend')
       + '</div></div>';
   }).join('');
+}
+
+// Opens the modal listing the projects behind a rejection/amendment rate. Mirrors the membership
+// rules of collectRejectionRates: same denominator (resolved, minus REJECTION_RATE_EXCLUDE) and
+// numerator (rej = first-time rejection via permRejectionCount; amend = has an "Izmena ..." process).
+function showPermRateProjects(cat, kind) {
+  const color = cat === 'Lokacijski uslovi' ? '#3b9eff' : '#f97316';
+  const att = [], num = [];
+  PROJECTS.forEach(function(p) {
+    if (REJECTION_RATE_EXCLUDE.indexOf((p.name || '').trim()) > -1) return;
+    const ph = p.permit_history;
+    if (!ph || typeof ph !== 'object' || Array.isArray(ph)) return;
+    let resolved = false, amended = false;
+    Object.keys(ph).forEach(function(aspect) {
+      if (aspect === '_completed') return;
+      if (!DEFAULT_ASPECTS.includes(aspect) && aspect.split(' / ').indexOf('Elektrana') === -1) return;
+      const entries = ph[aspect];
+      if (!Array.isArray(entries)) return;
+      entries.forEach(function(e) {
+        if (!e || !e.name || classifyPermitProcessName(e.name) !== cat) return;
+        const rd = e.dates_rejected || (e.date_rejected ? [e.date_rejected] : []);
+        if (e.date_approved || (rd && rd.length)) resolved = true;
+        if (normSrLatin(e.name).indexOf('izmen') > -1) amended = true;
+      });
+    });
+    if (!resolved) return;
+    att.push(p);
+    const rc = permRejectionCount(p, cat);
+    if (kind === 'rej' && rc > 0) num.push({ p: p, count: rc });
+    else if (kind === 'amend' && amended) num.push({ p: p, count: 0 });
+  });
+  num.sort(function(a,b){ return b.count - a.count || a.p.name.localeCompare(b.p.name); });
+  const pct = att.length ? Math.round(num.length / att.length * 100) : 0;
+  const kindLabel = kind === 'rej' ? 'Odbijeni pri prvom ishodovanju' : 'Pokrenuli izmenu';
+  document.getElementById('pdm-title').innerHTML = '<span style="color:'+color+'">'+kindLabel+' — '+esc(cat)+'</span>';
+  document.getElementById('pdm-sub').textContent = num.length + ' od ' + att.length + ' projekata · ' + pct + '%';
+  document.getElementById('pdm-list').innerHTML = num.length
+    ? num.map(function(r, i) {
+        const mw = Math.round(Number(r.p.capacity_mw) || 0);
+        return '<div onclick="closePermDurModal();openProjSummary(' + r.p.id + ')" style="cursor:pointer;display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px solid var(--border)">'
+          + '<span style="font-size:12px;color:var(--muted);width:24px;flex-shrink:0;text-align:right">'+(i+1)+'.</span>'
+          + '<div style="flex:1;min-width:0">'
+          +   '<div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+techBadgeHtml(r.p.technology)+esc(r.p.name)+'</div>'
+          +   '<div style="font-size:11px;color:var(--muted)">'+mw+' MW</div>'
+          + '</div>'
+          + (kind === 'rej' ? '<div style="font-size:12px;font-weight:700;color:#ef4444;flex-shrink:0;white-space:nowrap">'+r.count+'× odbijen</div>' : '')
+          + '</div>';
+      }).join('')
+    : '<div style="font-size:13px;color:var(--muted);font-style:italic;padding:12px 0">Nema projekata.</div>';
+  document.getElementById('perm-dur-modal').style.display = 'flex';
 }
 
 // Connector column between two hero cards, showing the average gap between phases.
