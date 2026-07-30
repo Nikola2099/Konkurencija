@@ -2645,11 +2645,13 @@ function renderPermitPendingHero() {
   const rowHtml = function(row) {
     const urgent = row.daysWaiting > 180;
     const mw = Math.round(Number(row.project.capacity_mw)||0);
+    const rej = permRejectionCount(row.project, row.category);
     return '<div style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 14px;cursor:pointer" onclick="openProjSummary('+row.project.id+')">'
       + '<div style="flex:1;min-width:0">'
       +   '<div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+techBadgeHtml(row.project.technology)+esc(row.project.name)+'</div>'
       +   '<div style="font-size:11px;color:var(--muted)">'+mw+' MW</div>'
       + '</div>'
+      + '<div style="flex:0 0 78px;text-align:right;font-size:11px;font-weight:700;white-space:nowrap;color:'+(rej>0?'#ef4444':'var(--muted)')+'">'+rej+'× odbijen</div>'
       + '<div style="text-align:right;flex-shrink:0">'
       +   '<div style="font-size:13px;font-weight:700;color:'+(urgent?'#ef4444':'var(--text)')+'">'+formatDurationDays(row.daysWaiting)+'</div>'
       + '</div></div>';
