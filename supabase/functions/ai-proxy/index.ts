@@ -1,16 +1,16 @@
 // Supabase Edge Function: ai-proxy
-// Proksira zahteve frontend-a ka Anthropic Messages API-ju, tako da tajni
-// ANTHROPIC_API_KEY nikada ne napušta server. Frontend šalje { model, max_tokens, system, messages }.
+// Proxies frontend requests to the Anthropic Messages API so that the secret
+// ANTHROPIC_API_KEY never leaves the server. The frontend sends { model, max_tokens, system, messages }.
 //
 // Deploy:
 //   supabase functions deploy ai-proxy --no-verify-jwt
-// Secret (jednom):
+// Secret (once):
 //   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 
-// Dozvoljeni modeli — sprečava da neko preko proxy-ja poziva proizvoljne/skupe modele.
+// Allowed models — prevents anyone from calling arbitrary/expensive models through the proxy.
 const ALLOWED_MODELS = new Set([
   "claude-sonnet-5",
   "claude-opus-4-8",
@@ -38,28 +38,28 @@ Deno.serve(async (req) => {
 
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!apiKey) {
-    return json({ error: { message: "ANTHROPIC_API_KEY nije podešen na serveru." } }, 500);
+    return json({ error: { message: "ANTHROPIC_API_KEY is not configured on the server." } }, 500);
   }
 
   let payload: any;
   try {
     payload = await req.json();
   } catch {
-    return json({ error: { message: "Nevažeći JSON u zahtevu." } }, 400);
+    return json({ error: { message: "Invalid JSON in request." } }, 400);
   }
 
   const model = ALLOWED_MODELS.has(payload?.model) ? payload.model : DEFAULT_MODEL;
-  // Podigni gornju granicu: Sonnet 5 podrazumevano "misli", pa mora ostati dovoljno
-  // prostora za sam odgovor pored thinking-a (inače potroši sve na razmišljanje).
+  // Raise the upper limit: Sonnet 5 "thinks" by default, so enough room must remain
+  // for the answer itself besides the thinking (otherwise it spends everything on reasoning).
   const max_tokens = Math.min(Number(payload?.max_tokens) || 1500, 8192);
   const messages = Array.isArray(payload?.messages) ? payload.messages : [];
   const system = typeof payload?.system === "string" ? payload.system : undefined;
-  // Podrazumevano isključi extended thinking (za faktografska pitanja nad podacima nije potreban
-  // i troši ceo token budžet). Klijent može eksplicitno da prosledi svoj `thinking` objekat.
+  // Disable extended thinking by default (not needed for factual questions over the data
+  // and it consumes the whole token budget). The client can explicitly pass its own `thinking` object.
   const thinking = payload?.thinking ?? { type: "disabled" };
 
   if (!messages.length) {
-    return json({ error: { message: "Nedostaje 'messages'." } }, 400);
+    return json({ error: { message: "Missing 'messages'." } }, 400);
   }
 
   try {
@@ -74,9 +74,9 @@ Deno.serve(async (req) => {
     });
 
     const data = await res.json();
-    // Prosleđujemo Anthropic-ov odgovor (i status) nazad frontend-u kakav jeste.
+    // Forward Anthropic's response (and status) back to the frontend as-is.
     return json(data, res.status);
   } catch (e) {
-    return json({ error: { message: "Greška pri pozivu Anthropic API-ja: " + (e?.message || e) } }, 502);
+    return json({ error: { message: "Error calling the Anthropic API: " + (e?.message || e) } }, 502);
   }
 });

@@ -1360,14 +1360,14 @@
 
     <div class="two-col" style="margin-top:24px">
       <div class="chart-card">
-        <div class="chart-title">Lokacijski uslovi by year + total capacity (MW)</div>
+        <div class="chart-title">Location Conditions by year + total capacity (MW)</div>
         <div style="display:flex;gap:14px;align-items:stretch">
           <div style="position:relative;height:320px;flex:1;min-width:0"><canvas id="perm-hero-chart-lu"></canvas></div>
           <div id="perm-hero-lu-projects" style="flex:0 0 160px;border-left:1px solid var(--border);padding-left:14px;overflow-y:auto;max-height:320px"></div>
         </div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">Građevinska dozvola by year + total capacity (MW)</div>
+        <div class="chart-title">Building Permit by year + total capacity (MW)</div>
         <div style="display:flex;gap:14px;align-items:stretch">
           <div style="position:relative;height:320px;flex:1;min-width:0"><canvas id="perm-hero-chart-gd"></canvas></div>
           <div id="perm-hero-gd-projects" style="flex:0 0 160px;border-left:1px solid var(--border);padding-left:14px;overflow-y:auto;max-height:320px"></div>
@@ -1634,6 +1634,49 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, function(c){
     return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
   });
+}
+
+// ── Display-only English labels for permit terminology ──
+// The raw Serbian strings (permit categories, process names, aspects, legacy process
+// types) are the values actually STORED in Supabase (permit_history keys/values) and are
+// used as lookup keys throughout the analytics logic — so they must NEVER be changed here.
+// permLabel() maps a stored Serbian value to its English display label at render time only.
+// Unknown values fall through unchanged (custom free-text names, already-English strings),
+// and combined aspect keys like "Elektrana / TS" are mapped part-by-part.
+const PERM_LABELS = {
+  // Permit categories
+  'Lokacijski uslovi': 'Location Conditions',
+  'Građevinska dozvola': 'Building Permit',
+  'Urbanistički plan': 'Urbanistic Plan',
+  'Energetska dozvola': 'Energy Permit',
+  // Process names (PROCESS_OPTIONS)
+  'Izmena lokacijskih uslova': 'Amendment of Location Conditions',
+  'Izmena građevinske dozvole': 'Amendment of Building Permit',
+  'Lokacijski uslovi na osnovu usaglašenog zahteva': 'Location Conditions (reconciled request)',
+  'Građevinska dozvola na osnovu usaglašenog zahteva': 'Building Permit (reconciled request)',
+  'Prijava radova': 'Commencement of Works Notice',
+  'Zahtev za ED': 'Energy Permit request',
+  'Energetska dozvola izdata': 'Energy Permit issued',
+  'Ostalo...': 'Other...',
+  // Aspects
+  'Elektrana': 'Power plant',
+  'Urbanizam': 'Zoning',
+  'Energetska Dozvola': 'Energy Permit',
+  // Legacy Urbanizam process types
+  'Odluka o Izradi': 'Drafting Decision',
+  'Rani Javni Uvid': 'Early Public Review',
+  'Javni Uvid': 'Public Review',
+  'Usvojen': 'Adopted',
+  'Odbijen': 'Rejected'
+};
+function permLabel(s) {
+  if (s == null) return '';
+  s = String(s);
+  if (PERM_LABELS[s]) return PERM_LABELS[s];
+  if (s.indexOf(' / ') > -1) {
+    return s.split(' / ').map(function(part){ return PERM_LABELS[part] || part; }).join(' / ');
+  }
+  return s;
 }
 
 
@@ -2047,9 +2090,9 @@ const PERMIT_PHASE_CATS = ['Lokacijski uslovi','Građevinska dozvola','Urbanisti
 const PERMIT_DURATION_CATS = ['Lokacijski uslovi','Građevinska dozvola'];
 function formatDurationDays(days) {
   const years = Math.floor(days/365), months = Math.floor((days%365)/30), rem = days%365%30;
-  if (years > 0) return years+'g '+months+'m';
-  if (months > 0) return months+'m '+rem+'d';
-  return days+' dana';
+  if (years > 0) return years+'y '+months+'mo';
+  if (months > 0) return months+'mo '+rem+'d';
+  return days+' d';
 }
 
 // Walks permit_history of the given (already filtered) projects and returns:
@@ -2629,11 +2672,11 @@ function collectRejectionRates(projects) {
   return stat;
 }
 
-// Small VE/SE technology badge used in project lists.
+// Small W/S technology badge used in project lists.
 function techBadgeHtml(tech) {
   tech = (tech||'').trim();
-  if (tech === 'Wind') return '<span style="font-size:9px;font-weight:800;color:#3b9eff;background:#3b9eff22;border-radius:4px;padding:1px 4px;margin-right:5px">VE</span>';
-  if (tech === 'Solar') return '<span style="font-size:9px;font-weight:800;color:#f5c842;background:#f5c84222;border-radius:4px;padding:1px 4px;margin-right:5px">SE</span>';
+  if (tech === 'Wind') return '<span style="font-size:9px;font-weight:800;color:#3b9eff;background:#3b9eff22;border-radius:4px;padding:1px 4px;margin-right:5px">W</span>';
+  if (tech === 'Solar') return '<span style="font-size:9px;font-weight:800;color:#f5c842;background:#f5c84222;border-radius:4px;padding:1px 4px;margin-right:5px">S</span>';
   return '';
 }
 
@@ -2708,7 +2751,7 @@ function renderPermitRejectionRates() {
   };
   el.innerHTML = ITEMS.map(function(it) {
     return '<div class="stat-card" style="padding:22px 26px;flex:1">'
-      + '<div class="stat-label" style="margin-bottom:14px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+it.color+';margin-right:6px"></span>'+it.label+'</div>'
+      + '<div class="stat-label" style="margin-bottom:14px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+it.color+';margin-right:6px"></span>'+permLabel(it.label)+'</div>'
       + '<div style="display:flex;gap:24px;flex-wrap:wrap">'
       +   metric('Rejection', it.s.rej, it.s.att, function(pct){ return pct >= 30 ? '#ef4444' : (pct > 0 ? '#f59e0b' : '#22c55e'); }, 'rejected at least once', it.label, 'rej')
       +   metric('Chance of amendment', it.s.amend, it.s.att, function(pct){ return pct >= 30 ? '#f59e0b' : (pct > 0 ? '#eab308' : '#22c55e'); }, 'initiated an amendment', it.label, 'amend')
@@ -2811,9 +2854,9 @@ function permDurationSet(kind) {
   switch (kind) {
     case 'PDR':    return { label: 'PDR (Detailed Regulation Plan)', color: '#a855f7', entries: collectPdrDurations(PROJECTS) };
     case 'PDR_LU': return { label: 'PDR → LU (PDR adoption → LU submission)', color: '#3b9eff', entries: collectPdrToLuGap(PROJECTS) };
-    case 'LU':     return { label: 'Lokacijski uslovi (submission → issuance)', color: '#3b9eff', entries: durations['Lokacijski uslovi'] || [] };
+    case 'LU':     return { label: 'Location Conditions (submission → issuance)', color: '#3b9eff', entries: durations['Lokacijski uslovi'] || [] };
     case 'LU_GD':  return { label: 'LU → GD (LU issuance → GD submission)', color: '#f97316', entries: collectLuToGdGap(PROJECTS) };
-    case 'GD':     return { label: 'Građevinska dozvola (submission → issuance)', color: '#f97316', entries: durations['Građevinska dozvola'] || [] };
+    case 'GD':     return { label: 'Building Permit (submission → issuance)', color: '#f97316', entries: durations['Građevinska dozvola'] || [] };
   }
   return null;
 }
@@ -2885,7 +2928,7 @@ function showPermDurations(kind) {
       let rejHtml = '';
       if (rejCat) {
         const rc = p ? permRejectionCount(p, rejCat) : 0;
-        rejHtml = '<div style="flex:0 0 78px;text-align:right;font-size:11px;font-weight:700;white-space:nowrap;color:'+(rc>0?'#ef4444':'var(--muted)')+'">'+rc+'× odbijen</div>';
+        rejHtml = '<div style="flex:0 0 78px;text-align:right;font-size:11px;font-weight:700;white-space:nowrap;color:'+(rc>0?'#ef4444':'var(--muted)')+'">'+rc+'× rejected</div>';
       }
       return '<div'+onclick+' style="'+cursor+'display:flex;align-items:center;gap:12px;padding:9px 4px;border-bottom:1px solid var(--border)">'
         + '<span style="font-size:12px;color:var(--muted);width:24px;flex-shrink:0;text-align:right">'+(i+1)+'.</span>'
@@ -2921,7 +2964,7 @@ function renderPermitHero() {
     const vals = entries.map(function(d){ return d.days; }).sort(function(a,b){ return a-b; });
     if (!vals.length) {
       return '<div class="stat-card" style="padding:28px 30px;flex:1">'
-        + '<div class="stat-label">'+h.label+'</div>'
+        + '<div class="stat-label">'+permLabel(h.label)+'</div>'
         + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:28px;color:var(--muted);line-height:1;margin:6px 0 4px">No data</div></div>';
     }
     const avg = Math.round(vals.reduce(function(s,v){ return s+v; },0) / vals.length);
@@ -2947,7 +2990,7 @@ function renderPermitHero() {
     }
 
     return '<div class="stat-card perm-clickable" onclick="showPermDurations(\''+h.kind+'\')" style="padding:28px 30px;flex:1;cursor:pointer">'
-      + '<div class="stat-label">'+h.label+'</div>'
+      + '<div class="stat-label">'+permLabel(h.label)+'</div>'
       + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:46px;color:'+h.color+';line-height:1;margin:6px 0 6px">'+formatDurationDays(avg)+'</div>'
       + '<div class="stat-sub">average · median '+formatDurationDays(median)+' · '+vals.length+' projects</div>'
       + deltaHtml
@@ -2983,11 +3026,11 @@ function renderPermitWaitAnalysis(filtered) {
     statsEl.innerHTML = PERMIT_DURATION_CATS.map(function(cat) {
       const vals = durations[cat].map(function(d){ return d.days; }).sort(function(a,b){ return a-b; });
       if (!vals.length) {
-        return '<div class="stat-card"><div class="stat-label">'+cat+'</div><div class="stat-value" style="font-size:18px;color:var(--muted)">No data</div></div>';
+        return '<div class="stat-card"><div class="stat-label">'+permLabel(cat)+'</div><div class="stat-value" style="font-size:18px;color:var(--muted)">No data</div></div>';
       }
       const avg = Math.round(vals.reduce(function(s,v){ return s+v; },0) / vals.length);
       const median = vals[Math.floor(vals.length/2)];
-      return '<div class="stat-card"><div class="stat-label">'+cat+'</div>'
+      return '<div class="stat-card"><div class="stat-label">'+permLabel(cat)+'</div>'
         +'<div class="stat-value" style="color:'+CAT_COLORS[cat]+'">'+formatDurationDays(avg)+'</div>'
         +'<div class="stat-sub">average · median '+formatDurationDays(median)+' · n='+vals.length+'</div></div>';
     }).join('');
@@ -3003,7 +3046,7 @@ function renderPermitWaitAnalysis(filtered) {
       labels: waitYears,
       datasets: PERMIT_DURATION_CATS.map(function(cat) {
         return {
-          label: cat,
+          label: permLabel(cat),
           data: waitYears.map(function(y) {
             const vals = durations[cat].filter(function(d){ return String(d.year) === y; }).map(function(d){ return d.days; });
             return vals.length ? Math.round(vals.reduce(function(s,v){ return s+v; },0)/vals.length) : null;
@@ -3082,7 +3125,7 @@ function renderPermitWaitAnalysis(filtered) {
               +'<div style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></div>'
               +'<div style="flex:1;min-width:0">'
               +'<div style="font-size:13px;font-weight:600;color:var(--text)">'+esc(row.project.name)+'</div>'
-              +'<div style="font-size:11px;color:var(--muted)">'+esc(row.category)+' · '+esc(row.aspect)+(row.caseNum?' · '+esc(row.caseNum):'')+'</div>'
+              +'<div style="font-size:11px;color:var(--muted)">'+esc(permLabel(row.category))+' · '+esc(permLabel(row.aspect))+(row.caseNum?' · '+esc(row.caseNum):'')+'</div>'
               +'</div>'
               +'<div style="text-align:right;flex-shrink:0">'
               +'<div style="font-size:13px;font-weight:700;color:'+(urgent?'#ef4444':'var(--text)')+'">'+formatDurationDays(row.daysWaiting)+'</div>'
@@ -3149,7 +3192,7 @@ function renderPermitWaitAnalysis(filtered) {
       { cat:'Građevinska dozvola', col:'#f97316' }
     ];
     const operational = filtered.filter(function(p){ const s=(p.status_overall||'').toLowerCase(); return s.indexOf('operation')>-1 || s.indexOf('construction')>-1; }).length;
-    const rows = FUNNEL_STAGES.map(function(s){ return { label:s.cat, count:(approvedByCat[s.cat]?approvedByCat[s.cat].size:0), col:s.col }; });
+    const rows = FUNNEL_STAGES.map(function(s){ return { label:permLabel(s.cat), count:(approvedByCat[s.cat]?approvedByCat[s.cat].size:0), col:s.col }; });
     rows.push({ label:'Under construction / operational', count:operational, col:'#22c55e' });
     const maxF = Math.max(1, Math.max.apply(null, rows.map(function(r){return r.count;})));
     funnelEl.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">'
@@ -3183,7 +3226,7 @@ function renderPermitWaitAnalysis(filtered) {
             const col = CAT_COLORS[cat] || '#94a3b8';
             return '<div style="display:flex;align-items:center;gap:10px">'
               +'<div style="width:8px;height:8px;border-radius:50%;background:'+col+';flex-shrink:0"></div>'
-              +'<div style="flex:1;font-size:12px;color:var(--text)">'+cat+'</div>'
+              +'<div style="flex:1;font-size:12px;color:var(--text)">'+permLabel(cat)+'</div>'
               +'<div style="font-size:13px;font-weight:700;color:'+col+'">'+byCatR[cat]+'</div>'
               +'</div>';
           }).join('')
@@ -3208,7 +3251,7 @@ function renderPermitLawComparison(projectsNoLawFilter) {
   const labels = PERM_LAW_ORDER.map(function(l){ return l.label; });
   const datasets = PERMIT_DURATION_CATS.map(function(cat){
     return {
-      label: cat,
+      label: permLabel(cat),
       data: PERM_LAW_ORDER.map(function(l){
         const vals = durations[cat].filter(function(d){ return (d.law||'').trim() === l.key.trim(); }).map(function(d){ return d.days; });
         return vals.length ? Math.round(vals.reduce(function(s,v){return s+v;},0)/vals.length) : null;
@@ -3243,7 +3286,7 @@ function exportPendingCsv() {
   const header = ['Project','Phase','Aspect','Case number','Submission date','Days waiting'];
   const escCsv = function(v){ v = (v==null?'':String(v)); return /[",\n;]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
   const lines = [header.join(';')].concat(rows.map(function(r){
-    return [r.project.name, r.category, r.aspect, r.caseNum||'', r.dateSubmitted||'', r.daysWaiting].map(escCsv).join(';');
+    return [r.project.name, permLabel(r.category), permLabel(r.aspect), r.caseNum||'', r.dateSubmitted||'', r.daysWaiting].map(escCsv).join(';');
   }));
   const blob = new Blob(['﻿'+lines.join('\r\n')], { type:'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -4435,7 +4478,7 @@ async function sendAI() {
     const data = await res.json();
     if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
     // Sonnet 5 may return a "thinking" block before the text — take the first text block, not content[0].
-    const reply = (data.content || []).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join('\n') || 'Nema odgovora.';
+    const reply = (data.content || []).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join('\n') || 'No response.';
     aiHistory.push({ role:'assistant', content:reply });
     document.getElementById(thinkId)?.remove();
 
@@ -4502,7 +4545,7 @@ async function sendFloatAI() {
     const data = await res.json();
     if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
     // Sonnet 5 may return a "thinking" block before the text — take the first text block, not content[0].
-    const reply = (data.content || []).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join('\n') || 'Nema odgovora.';
+    const reply = (data.content || []).filter(function(b){ return b.type === 'text'; }).map(function(b){ return b.text; }).join('\n') || 'No response.';
     floatAiHistory.push({ role:'assistant', content:reply });
     document.getElementById(thinkId)?.remove();
 
@@ -5549,10 +5592,10 @@ function renderPermitStepper(p) {
   const info = computeElektranaPermitInfo(p);
   const status = info.stages;
   const STEPS = [
-    { cat:'Urbanistički plan', short:'Urbanizam' },
-    { cat:'Lokacijski uslovi', short:'Lokacijski' },
-    { cat:'Energetska dozvola', short:'Energetska' },
-    { cat:'Građevinska dozvola', short:'Građevinska' }
+    { cat:'Urbanistički plan', short:'Zoning' },
+    { cat:'Lokacijski uslovi', short:'Location' },
+    { cat:'Energetska dozvola', short:'Energy' },
+    { cat:'Građevinska dozvola', short:'Building' }
   ];
   // Order the timeline by when each phase was actually OBTAINED (its approval date). Projects that got a phase
   // out of the usual sequence — e.g. ED before LU, as on project "Baranda" — show real chronological order.
@@ -5636,8 +5679,8 @@ function renderPermitStepper(p) {
   row += '</div>';
 
   const headerLabel = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
-    + '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#3b9eff;background:#3b9eff1a;border:1px solid #3b9eff55;border-radius:6px;padding:3px 8px">⚡ Aspect: Elektrana</span>'
-    + '<span style="font-size:11px;color:var(--muted)">The timeline shows only the „Elektrana" aspect</span>'
+    + '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#3b9eff;background:#3b9eff1a;border:1px solid #3b9eff55;border-radius:6px;padding:3px 8px">⚡ Aspect: Power plant</span>'
+    + '<span style="font-size:11px;color:var(--muted)">The timeline shows only the "Power plant" aspect</span>'
     + '</div>';
 
   el.innerHTML = headerLabel + banner + '<div style="overflow-x:auto">' + row + '</div>';
@@ -5692,7 +5735,7 @@ function renderPermitHistory(p) {
               +'</div>'
               +'<div style="flex:1">'
               +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px">'
-              +'<div style="font-size:13px;font-weight:700;color:'+col+'">'+e.type+'</div>'
+              +'<div style="font-size:13px;font-weight:700;color:'+col+'">'+permLabel(e.type)+'</div>'
               +'<div style="font-family:Syne,sans-serif;font-size:13px;font-weight:700;color:var(--text)">'+(e.date||'')+'</div>'
               +'</div>'
               +(e.case_num?'<div style="font-size:11px;color:var(--accent);margin-bottom:2px;display:flex;align-items:center;gap:6px">📋 '+esc(e.case_num)
@@ -5743,9 +5786,9 @@ function renderPermitHistory(p) {
               const years = Math.floor(days / 365);
               const months = Math.floor((days % 365) / 30);
               const remDays = days % 365 % 30;
-              if (years > 0) return years + ' god. ' + months + ' mes. ' + remDays + ' dana';
-              if (months > 0) return months + ' mes. ' + remDays + ' dana';
-              return remDays + ' dana';
+              if (years > 0) return years + ' y ' + months + ' mo ' + remDays + ' d';
+              if (months > 0) return months + ' mo ' + remDays + ' d';
+              return remDays + ' d';
             };
             // Calculate duration submitted → approved
             let durationHtml = '';
@@ -5777,7 +5820,7 @@ function renderPermitHistory(p) {
             }
             return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">'
               +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
-              +'<div style="font-size:13px;font-weight:700;color:var(--text)">'+esc(e.name||'Process')+'</div>'
+              +'<div style="font-size:13px;font-weight:700;color:var(--text)">'+esc(permLabel(e.name)||'Process')+'</div>'
               +'<span style="font-size:11px;font-weight:600;color:'+statusColor+';background:'+statusColor+'15;padding:2px 8px;border-radius:10px">'+statusLabel+'</span>'
               +'</div>'
               +(e.case_num?'<div style="font-size:11px;color:var(--accent);margin-bottom:6px;display:flex;align-items:center;gap:6px">📋 '+esc(e.case_num)
@@ -5829,7 +5872,7 @@ function renderPermitHistory(p) {
           +'<div style="margin-bottom:8px"><div style="font-size:11px;color:var(--muted);margin-bottom:3px">Process name</div>'
           +'<select id="pname_'+aid+'" onchange="onProcessNameChange(\''+aid+'\')" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box">'
           +'<option value="">— Select —</option>'
-          +PROCESS_OPTIONS.map(function(o){ return '<option value="'+(o==='Ostalo...'?'__custom__':o)+'">'+o+'</option>'; }).join('')
+          +PROCESS_OPTIONS.map(function(o){ return '<option value="'+(o==='Ostalo...'?'__custom__':o)+'">'+permLabel(o)+'</option>'; }).join('')
           +'</select>'
           +'<input id="pname_custom_'+aid+'" type="text" placeholder="Enter process name..." style="display:none;width:100%;margin-top:6px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none;box-sizing:border-box">'
           +'</div>'
@@ -5881,7 +5924,7 @@ function renderPermitHistory(p) {
           +'<button onclick="event.stopPropagation();toggleAspectDone(\''+aspSafe+'\')" '
             +'style="width:20px;height:20px;border-radius:50%;border:2px solid '+doneColor+';background:'+doneBg+';color:#fff;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;line-height:1" '
             +'title="Mark as completed">'+(isDone?'✓':'')+'</button>'
-          +'<div style="font-size:13px;font-weight:700;color:'+(isDone?'#22c55e':'var(--text)')+'">'+asp+'</div>'
+          +'<div style="font-size:13px;font-weight:700;color:'+(isDone?'#22c55e':'var(--text)')+'">'+permLabel(asp)+'</div>'
         +'</div>'
         +'<div style="display:flex;gap:8px;align-items:center">'
           +(entries.length?'<div style="font-size:11px;color:var(--muted)">'+entries.length+(isCustom?' process'+(entries.length===1?'':'es'):(entries.length===1?' entry':' entries'))+'</div>':'')
@@ -5895,7 +5938,7 @@ function renderPermitHistory(p) {
             +'<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Change aspect name</div>'
             +'<div style="display:flex;gap:8px">'
             +'<select id="rename_input_'+aid+'" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-family:DM Sans,sans-serif;font-size:12px;outline:none">'
-            +ASPECT_OPTIONS.map(function(o){ return '<option value="'+o+'"'+(o===asp?' selected':'')+'>'+o+'</option>'; }).join('')
+            +ASPECT_OPTIONS.map(function(o){ return '<option value="'+o+'"'+(o===asp?' selected':'')+'>'+permLabel(o)+'</option>'; }).join('')
             +'</select>'
             +'<button onclick="saveRenameAspect(\''+aspSafe+'\')" style="background:var(--accent);border:none;border-radius:7px;padding:7px 14px;color:#0b0f1a;font-family:Syne,sans-serif;font-weight:700;font-size:12px;cursor:pointer">Save</button>'
             +'<button onclick="document.getElementById(\'rename_'+aid+'\').style.display=\'none\'" style="background:transparent;border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--muted);font-size:12px;cursor:pointer">Cancel</button>'
@@ -6147,10 +6190,10 @@ function cancelPermitForm() {
 
 const PERMIT_TYPE_OPTIONS_BY_ASPECT = {
   'Urbanizam': [
-    { value: 'Odluka o Izradi', label: 'Odluka o Izradi' },
-    { value: 'Rani Javni Uvid', label: 'Rani Javni Uvid' },
-    { value: 'Javni Uvid', label: 'Javni Uvid' },
-    { value: 'Usvojen', label: 'Usvojen' }
+    { value: 'Odluka o Izradi', label: 'Drafting Decision' },
+    { value: 'Rani Javni Uvid', label: 'Early Public Review' },
+    { value: 'Javni Uvid', label: 'Public Review' },
+    { value: 'Usvojen', label: 'Adopted' }
   ]
 };
 const PERMIT_TYPE_OPTIONS_DEFAULT = [
@@ -6283,7 +6326,7 @@ function openNewAspectForm() {
           + 'style="padding:7px 16px;border-radius:20px;border:1px solid var(--border);'
           + 'background:transparent;color:var(--muted);'
           + 'font-family:\'DM Sans\',sans-serif;font-size:12px;cursor:pointer;transition:all .15s">'
-          + opt
+          + permLabel(opt)
           + '</button>';
       }).join('');
     }
