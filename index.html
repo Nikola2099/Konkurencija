@@ -113,7 +113,10 @@
   }
 
   .login-btn:hover { opacity: .9; }
+  .login-btn:disabled { opacity: .6; cursor: default; }
   .login-error { color: var(--danger); font-size: 12px; margin-top: 10px; display: none; }
+  .login-link { color: var(--muted); font-size: 12px; margin-top: 14px; cursor: pointer; transition: color .2s; }
+  .login-link:hover { color: var(--accent); }
 
   /* MAIN APP */
   #app { display: none; }
@@ -1098,10 +1101,34 @@
     <div class="login-logo">⚡</div>
     <h1>Serbia RE Intelligence</h1>
     <p>Renewable Energy Competitive Landscape</p>
-    <input type="email" id="login-user" placeholder="Email" />
-    <input type="password" id="login-pass" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()" />
-    <button class="login-btn" onclick="doLogin()">Sign In</button>
-    <div class="login-error" id="login-error">Invalid credentials. Try again.</div>
+
+    <div id="login-main">
+      <input type="email" id="login-user" placeholder="Email" />
+      <input type="password" id="login-pass" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()" />
+      <button class="login-btn" onclick="doLogin()">Sign In</button>
+      <div class="login-link" onclick="showResetForm(true)">Forgot password?</div>
+    </div>
+
+    <div id="reset-form" style="display:none">
+      <input type="email" id="reset-email" placeholder="Email" onkeydown="if(event.key==='Enter')doSendReset()" />
+      <button class="login-btn" id="reset-send-btn" onclick="doSendReset()">Send reset link</button>
+      <div class="login-link" onclick="showResetForm(false)">← Back to sign in</div>
+    </div>
+
+    <div class="login-error" id="login-msg" style="display:none"></div>
+  </div>
+</div>
+
+<!-- PASSWORD RECOVERY (arrived from reset link) -->
+<div id="recovery-screen" style="display:none;position:fixed;inset:0;background:var(--bg);align-items:center;justify-content:center;z-index:1001">
+  <div class="login-box">
+    <div class="login-logo">🔑</div>
+    <h1>Set a new password</h1>
+    <p>Choose a new password for your account</p>
+    <input type="password" id="recovery-pass" placeholder="New password (min. 8 characters)" />
+    <input type="password" id="recovery-pass2" placeholder="Confirm new password" onkeydown="if(event.key==='Enter')doSetNewPassword()" />
+    <button class="login-btn" id="recovery-btn" onclick="doSetNewPassword()">Set new password</button>
+    <div class="login-error" id="recovery-msg" style="display:none"></div>
   </div>
 </div>
 
@@ -1385,6 +1412,16 @@
         <div class="chart-title">GD currently in progress</div>
         <div id="perm-hero-pending-gd"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- Projects by permit status, per connection window (law) -->
+  <div id="perm-status-dist" style="margin-top:40px">
+    <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:var(--text);margin-bottom:4px">Projects by permit status, per connection window</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:18px">In-development projects only, each counted once in its current permit status, grouped by the connection window (law) it belongs to · hover a segment for details</div>
+    <div class="chart-card" style="padding:28px 28px 22px">
+      <div style="position:relative;height:440px"><canvas id="perm-status-law-chart"></canvas></div>
+      <div id="perm-status-law-note" style="font-size:11px;color:var(--muted);margin-top:10px;font-style:italic"></div>
     </div>
   </div>
 </div>
@@ -1752,33 +1789,110 @@ function getCoords(location) {
 const EDIT_USERS = new Set(["nikola.miladinovic@cwp.global"]);
 let currentUser = null;
 
+let _appLoaded = false; // guards the one-time data load + initApp
+
+// Show a message on the login card (error = red, otherwise accent).
+function setLoginMsg(text, isError) {
+  const el = document.getElementById('login-msg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.display = text ? 'block' : 'none';
+  el.style.color = isError ? 'var(--danger)' : 'var(--accent)';
+}
+
+// Enter the app with a valid session — used by both a fresh login and a restored session.
+async function enterApp(session) {
+  currentUser = session.user.email;
+  currentToken = session.access_token;
+  document.getElementById('login-screen').style.display = 'none';
+  var rec = document.getElementById('recovery-screen'); if (rec) rec.style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('add-proj-btn').style.display = EDIT_USERS.has(currentUser) ? 'block' : 'none';
+  if (!_appLoaded) {
+    _appLoaded = true;
+    await loadProjectsFromDB();
+    initApp();
+  }
+}
+
 async function doLogin() {
   const email = document.getElementById('login-user').value.trim();
   const password = document.getElementById('login-pass').value;
   const btn = document.querySelector('.login-btn');
-  btn.textContent = 'Signing in...';
+  setLoginMsg('', false);
+  if (!email || !password) { setLoginMsg('Enter your email and password.', true); return; }
+  btn.textContent = 'Signing in…';
   btn.disabled = true;
+  try { localStorage.setItem('konkurencija-last-email', email); } catch (e) {}
   const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
   btn.textContent = 'Sign In';
   btn.disabled = false;
   if (error || !data.session) {
-    document.getElementById('login-error').style.display = 'block';
+    setLoginMsg(error ? error.message : 'Sign-in failed. Please try again.', true);
     return;
   }
-  currentUser = data.user.email;
-  currentToken = data.session.access_token;
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  document.getElementById('add-proj-btn').style.display = EDIT_USERS.has(currentUser) ? 'block' : 'none';
-  loadProjectsFromDB().then(initApp);
+  await enterApp(data.session);
 }
 
 async function doLogout() {
   await _supabase.auth.signOut();
   currentUser = null;
   currentToken = SB_KEY;
-  document.getElementById('login-screen').style.display = 'flex';
+  _appLoaded = false;
   document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+// ----- Forgot password: request a reset link -----
+function showResetForm(show) {
+  document.getElementById('login-main').style.display = show ? 'none' : 'block';
+  document.getElementById('reset-form').style.display = show ? 'block' : 'none';
+  setLoginMsg('', false);
+  if (show) {
+    var em = document.getElementById('login-user').value.trim();
+    if (em) document.getElementById('reset-email').value = em;
+  }
+}
+async function doSendReset() {
+  const email = document.getElementById('reset-email').value.trim();
+  if (!email) { setLoginMsg('Enter your email address.', true); return; }
+  const btn = document.getElementById('reset-send-btn');
+  btn.textContent = 'Sending…'; btn.disabled = true;
+  const { error } = await _supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.href.split('#')[0] });
+  btn.textContent = 'Send reset link'; btn.disabled = false;
+  if (error) { setLoginMsg(error.message, true); return; }
+  showResetForm(false);
+  setLoginMsg('If an account exists for that email, a reset link is on its way. Check your inbox.', false);
+}
+
+// ----- Password recovery: user arrived from the reset link, set a new password -----
+function setRecoveryMsg(text, isError) {
+  const el = document.getElementById('recovery-msg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.display = text ? 'block' : 'none';
+  el.style.color = isError ? 'var(--danger)' : 'var(--accent)';
+}
+function showRecoveryScreen() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  const rec = document.getElementById('recovery-screen');
+  if (rec) rec.style.display = 'flex';
+}
+async function doSetNewPassword() {
+  const p1 = document.getElementById('recovery-pass').value;
+  const p2 = document.getElementById('recovery-pass2').value;
+  if (!p1 || p1.length < 8) { setRecoveryMsg('Password must be at least 8 characters.', true); return; }
+  if (p1 !== p2) { setRecoveryMsg('Passwords do not match.', true); return; }
+  const btn = document.getElementById('recovery-btn');
+  btn.textContent = 'Saving…'; btn.disabled = true;
+  const { error } = await _supabase.auth.updateUser({ password: p1 });
+  btn.textContent = 'Set new password'; btn.disabled = false;
+  if (error) { setRecoveryMsg(error.message, true); return; }
+  setRecoveryMsg('Password updated. Signing you in…', false);
+  try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
+  const { data } = await _supabase.auth.getSession();
+  if (data.session) await enterApp(data.session);
 }
 
 // ========== NAV ==========
@@ -2400,6 +2514,179 @@ function renderPermittingCharts() {
   renderPermitHero();
   renderPermitHeroChart();
   renderPermitPendingHero();
+  renderPermitStatusByLaw();
+}
+
+// ========== PROJECTS BY PERMIT STATUS, PER CONNECTION WINDOW (LAW) ==========
+// Permit statuses form an ordered pipeline (funnel), so color is an ORDINAL ramp —
+// one hue (blue), light → dark = early → advanced. "Nothing / Inactive" sits outside
+// the pipeline, so it carries a neutral slate instead of a ramp step. The blue ramp
+// (6 steps) + dark surface (#131929) passes the data-viz validator's ordinal checks
+// (monotone lightness, >=0.06 ΔL gaps, light-end contrast). `text` is the in-segment
+// label ink, chosen for contrast against each step.
+const PERM_STATUS_ORDER = [
+  { key:'Urbanistic Plan in preparation', label:'Urb. Plan (prep)',    color:'#cde2fb', text:'#0b1220' },
+  { key:'Urbanistic Plan Adopted',        label:'Urb. Plan adopted',   color:'#9ec5f4', text:'#0b1220' },
+  { key:'Location Conditions',            label:'Location Conditions', color:'#6da7ec', text:'#0b1220' },
+  { key:'Energy permit',                  label:'Energy permit',       color:'#3987e5', text:'#ffffff' },
+  { key:'Building Permit',                label:'Building Permit',     color:'#256abf', text:'#ffffff' },
+  { key:'Finished',                       label:'Finished',            color:'#184f95', text:'#ffffff' },
+  { key:'Nothing (inactive)',             label:'Nothing / Inactive',  color:'#64748b', text:'#ffffff' }
+];
+
+// Map a project's status_permitting to exactly one canonical status key. Values are normally
+// an exact select value; we fall back to a furthest-stage substring match for legacy free text.
+function normalizePermitStatus(raw) {
+  const s = (raw || '').trim();
+  if (!s) return 'Nothing (inactive)';
+  for (var i = 0; i < PERM_STATUS_ORDER.length; i++) {
+    if (s === PERM_STATUS_ORDER[i].key) return PERM_STATUS_ORDER[i].key;
+  }
+  const low = s.toLowerCase();
+  for (var j = PERM_STATUS_ORDER.length - 1; j >= 0; j--) {
+    if (low.includes(PERM_STATUS_ORDER[j].key.toLowerCase())) return PERM_STATUS_ORDER[j].key;
+  }
+  return 'Nothing (inactive)';
+}
+
+function renderPermitStatusByLaw() {
+  const canvas = document.getElementById('perm-status-law-chart');
+  if (!canvas) return;
+
+  // counts[statusKey][lawKey] = number; cellProjects[statusKey][lawKey] = [names]
+  const counts = {}, cellProjects = {};
+  PERM_STATUS_ORDER.forEach(function(st){
+    counts[st.key] = {}; cellProjects[st.key] = {};
+    PERM_LAW_ORDER.forEach(function(l){ counts[st.key][l.key] = 0; cellProjects[st.key][l.key] = []; });
+  });
+  let unmatchedLaw = 0;
+  // Only projects still in development — operational/under-construction ones are excluded.
+  PROJECTS.filter(function(p){ return p.status_overall === 'In development'; }).forEach(function(p){
+    const law = (p.law || '').trim();
+    const match = PERM_LAW_ORDER.filter(function(l){ return l.key.trim() === law; })[0];
+    if (!match) { unmatchedLaw++; return; }
+    const stKey = normalizePermitStatus(p.status_permitting);
+    counts[stKey][match.key]++;
+    cellProjects[stKey][match.key].push(p.name || '(unnamed)');
+  });
+  Object.keys(cellProjects).forEach(function(sk){
+    Object.keys(cellProjects[sk]).forEach(function(lk){
+      cellProjects[sk][lk].sort(function(a, b){ return a.localeCompare(b); });
+    });
+  });
+
+  // Stacked bar: x = connection windows, one dataset (segment) per permit status.
+  // A 2px surface-colored border on every segment reads as the data-viz spec's
+  // 2px gap between stacked fills; borderRadius softens the segment corners.
+  const SURFACE = (getComputedStyle(document.documentElement).getPropertyValue('--surface') || '#131929').trim();
+  const labels = PERM_LAW_ORDER.map(function(l){ return l.label; });
+  const datasets = PERM_STATUS_ORDER.map(function(st){
+    return {
+      label: st.label,
+      data: PERM_LAW_ORDER.map(function(l){ return counts[st.key][l.key]; }),
+      backgroundColor: st.color,
+      borderColor: SURFACE,
+      borderWidth: 2,
+      borderRadius: 3,
+      borderSkipped: false,
+      hoverBorderColor: '#00e5a0',
+      hoverBorderWidth: 2
+    };
+  });
+
+  // Plugin: value inside each segment tall enough to hold it; total above each stack.
+  const segmentLabels = {
+    id: 'permStatusSegmentLabels',
+    afterDatasetsDraw: function(chart) {
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      chart.data.datasets.forEach(function(ds, di) {
+        const meta = chart.getDatasetMeta(di);
+        if (meta.hidden) return;
+        ctx.fillStyle = PERM_STATUS_ORDER[di].text;
+        ctx.font = '700 11px "DM Sans", system-ui, sans-serif';
+        meta.data.forEach(function(bar, i) {
+          const v = ds.data[i];
+          if (!v) return;
+          if (Math.abs(bar.base - bar.y) < 16) return; // segment too short to label
+          ctx.fillText(v, bar.x, (bar.y + bar.base) / 2);
+        });
+      });
+      // Totals above each stack
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '800 13px "Syne", system-ui, sans-serif';
+      ctx.textBaseline = 'bottom';
+      labels.forEach(function(lab, i) {
+        let total = 0, topY = Infinity, x = null;
+        chart.data.datasets.forEach(function(ds, di) {
+          const meta = chart.getDatasetMeta(di);
+          if (meta.hidden) return;
+          const bar = meta.data[i];
+          if (!bar) return;
+          total += (ds.data[i] || 0);
+          if (bar.y < topY) { topY = bar.y; x = bar.x; }
+        });
+        if (x === null || !total) return;
+        ctx.fillText(total, x, topY - 7);
+      });
+      ctx.restore();
+    }
+  };
+
+  makeChart('perm-status-law-chart', {
+    type: 'bar',
+    data: { labels: labels, datasets: datasets },
+    plugins: [segmentLabels],
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 22 } },
+      categoryPercentage: 0.62, barPercentage: 0.9,
+      interaction: { mode: 'nearest', intersect: true },
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12, boxHeight: 12, padding: 14, usePointStyle: true, pointStyle: 'rectRounded' } },
+        tooltip: {
+          backgroundColor: '#0b0f1a', borderColor: '#1e2d47', borderWidth: 1,
+          titleColor: '#e2e8f0', bodyColor: '#cbd5e1', footerColor: '#94a3b8',
+          padding: 12, boxPadding: 4, titleFont: { size: 13, weight: '700' },
+          callbacks: {
+            // Header: "<Status> · <Window>" + the count on the next line
+            title: function(items){
+              if (!items.length) return '';
+              var ctx = items[0];
+              return PERM_STATUS_ORDER[ctx.datasetIndex].label + ' · ' + PERM_LAW_ORDER[ctx.dataIndex].label;
+            },
+            label: function(ctx){
+              return ctx.parsed.y + ' project' + (ctx.parsed.y === 1 ? '' : 's') + ':';
+            },
+            // Body: the project names in this status × window cell
+            afterLabel: function(ctx){
+              var stKey = PERM_STATUS_ORDER[ctx.datasetIndex].key;
+              var lawKey = PERM_LAW_ORDER[ctx.dataIndex].key;
+              var names = (cellProjects[stKey] && cellProjects[stKey][lawKey]) || [];
+              if (!names.length) return '';
+              var MAX = 25;
+              var shown = names.slice(0, MAX).map(function(n){ return '  • ' + n; });
+              if (names.length > MAX) shown.push('  … +' + (names.length - MAX) + ' more');
+              return shown;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { stacked: true, ticks: { color: '#94a3b8', font: { size: 12 } }, grid: { display: false }, border: { display: false } },
+        y: { stacked: true, beginAtZero: true, ticks: { color: '#64748b', precision: 0, stepSize: 5 }, grid: { color: 'rgba(30,45,71,.6)' }, border: { display: false } }
+      }
+    }
+  });
+
+  const noteEl = document.getElementById('perm-status-law-note');
+  if (noteEl) {
+    noteEl.textContent = unmatchedLaw
+      ? (unmatchedLaw + ' project' + (unmatchedLaw > 1 ? 's' : '') + ' not assigned to a connection window (no/unknown law) — excluded.')
+      : '';
+  }
 }
 
 // Average PDR (Plan detaljne regulacije) adoption duration across all projects:
@@ -2604,8 +2891,8 @@ function renderPhaseYearChart(canvasId, countLabel, color, countByYear, mwByYear
       },
       scales: {
         x: { ticks: { color: '#e2e8f0' }, grid: { color: '#1e2d47' } },
-        y: { beginAtZero: true, max: 8, position: 'left', ticks: { color: '#64748b', stepSize: 1 }, grid: { color: '#1e2d47' }, title: { display: true, text: 'permit count', color: '#64748b', font: { size: 11 } } },
-        y1: { beginAtZero: true, max: 1300, position: 'right', ticks: { color: '#64748b' }, grid: { drawOnChartArea: false }, title: { display: true, text: 'MW', color: '#64748b', font: { size: 11 } } }
+        y: { beginAtZero: true, grace: '12%', position: 'left', ticks: { color: '#64748b', stepSize: 1, precision: 0 }, grid: { color: '#1e2d47' }, title: { display: true, text: 'permit count', color: '#64748b', font: { size: 11 } } },
+        y1: { beginAtZero: true, max: 1500, position: 'right', ticks: { color: '#64748b' }, grid: { drawOnChartArea: false }, title: { display: true, text: 'MW', color: '#64748b', font: { size: 11 } } }
       }
     }
   });
@@ -6775,7 +7062,14 @@ function renderProjModal() {
 // ===== SUPABASE CONFIG =====
 const SB_URL = 'https://iubmdftpbvxrexteasdn.supabase.co';
 const SB_KEY = 'sb_publishable_kNbRTDS1DKWRP429VH_z-g_864muQfo';
-const _supabase = window.supabase.createClient(SB_URL, SB_KEY);
+const _supabase = window.supabase.createClient(SB_URL, SB_KEY, {
+  auth: {
+    persistSession: true,       // keep the session in localStorage across reloads
+    autoRefreshToken: true,     // rotate the access token before it expires
+    detectSessionInUrl: true,   // parse the reset/recovery link in the URL hash
+    storageKey: 'konkurencija-auth'
+  }
+});
 let currentToken = SB_KEY;
 
 // Centralized PATCH of a single project row. Returns the fetch Promise<Response>
@@ -7099,6 +7393,39 @@ function initApp() {
 
   renderTable();
 }
+
+// ========== AUTH STARTUP ==========
+// Keep currentToken in sync with Supabase's own session lifecycle. This fixes the
+// stale-token bug: the access token rotates ~hourly, and edits (PATCH/insert) must
+// use the fresh one or the server returns 401.
+_supabase.auth.onAuthStateChange(function(event, session) {
+  if (event === 'PASSWORD_RECOVERY') { showRecoveryScreen(); return; }
+  if (event === 'SIGNED_OUT') { currentToken = SB_KEY; return; }
+  if (session && session.access_token) { currentToken = session.access_token; }
+});
+
+// On load: restore an existing session (no re-login on refresh), or show the login
+// screen. A recovery link in the URL hash routes to the "set new password" screen.
+(async function initAuth() {
+  const loginScreen = document.getElementById('login-screen');
+  loginScreen.style.display = 'none'; // avoid a flash before we know the auth state
+  try {
+    const last = localStorage.getItem('konkurencija-last-email');
+    if (last) document.getElementById('login-user').value = last;
+  } catch (e) {}
+
+  const isRecovery = (window.location.hash || '').indexOf('type=recovery') > -1;
+
+  let session = null;
+  try { session = (await _supabase.auth.getSession()).data.session; } catch (e) {}
+
+  if (isRecovery) { showRecoveryScreen(); return; }
+  if (session) {
+    await enterApp(session);
+  } else {
+    loginScreen.style.display = 'flex';
+  }
+})();
 </script>
 <!-- PROJECT SUMMARY MODAL -->
 <div id="proj-summary-modal" onclick="if(event.target===this)closeProjSummary()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:600;align-items:center;justify-content:center">
